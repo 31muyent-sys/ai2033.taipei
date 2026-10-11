@@ -11,7 +11,7 @@
 ## 設定（第一次，或 SQL 有更新時）
 
 1. Supabase 專案左側 **SQL Editor** → New query。
-2. 貼上 [`supabase.sql`](supabase.sql) 全部內容 → **Run**。重複執行沒關係；舊版（只有總榜）會自動升級，已有的成績會保留在總榜。
+2. 貼上 [`supabase.sql`](supabase.sql) 全部內容 → **Run**。重複執行沒關係；舊版會自動升級，已有的成績會保留。SQL 有更新時（例如調整極速）要再執行一次：網站只在資料庫版本（`race_boards()` 回傳的 `rev`）對得上時才用公榜，對不上就先存在玩家裝置。
 3. 到 GitHub 的 **Actions → leaderboard check → Run workflow**，從外部確認：函式存在、回應格式正確、亂送的成績會被擋下（這個檢查不會寫入任何資料）。
 
 ## 安全與防作弊
@@ -19,7 +19,7 @@
 - publishable key 是公開金鑰，本來就會出現在網頁裡；資料表開了 RLS 而且沒有任何 policy，瀏覽器**不能直接讀寫**，只能呼叫兩個函式：
   - `race_boards(course, limit)`：總榜和 5 張任務榜的前 N 名（只回傳名字和時間）
   - `submit_score(course, initials, legs, splits, trace)`：登錄這一趟（完整或中途）要上的榜
-- `submit_score` 會重播這一趟每 0.5 秒的位置：起點要對、時間只能往前、任兩點之間不能比小黃極速（52 m/s）還快、每一單要依序在各自的分段時間送達；總榜只收 5 單全送完的；不通過就回 `implausible`。
+- `submit_score` 會重播這一趟每 0.5 秒的位置：起點要對、時間只能往前、任兩點之間不能比小黃三段加速的極速（58 m/s）還快、每一單要依序在各自的分段時間送達；總榜只收 5 單全送完的；不通過就回 `implausible`。
 - 同一個連線 15 秒內只能登錄一次（`rate_limited`）；名字只收 A–Z 三個字母，並擋掉一小份不雅字詞（`blocked_initials`，清單在 SQL 與 `board.js` 裡各一份）。
 - 前端遊戲終究在玩家手上，會寫程式的人仍有辦法偽造一條「看起來合理」的路線。看到可疑的紀錄，在 SQL Editor 刪掉即可：
   ```sql

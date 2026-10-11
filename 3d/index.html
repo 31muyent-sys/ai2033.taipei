@@ -24,6 +24,7 @@
 </head>
 <body>
 <canvas id="c" aria-label="3D 臺北場景"></canvas>
+<canvas id="fx" hidden aria-hidden="true"></canvas>
 
 <!-- loading / intro -->
 <section id="intro" class="screen">
@@ -66,6 +67,8 @@
   </div>
   <div id="radar"><canvas id="radarC" width="260" height="260"></canvas><span class="n">N</span></div>
   <div id="speedo" class="panel"><b id="spd">0</b><small>km/h</small></div>
+  <div id="boostMeter" class="panel" hidden><b id="bmTag">BOOST</b><div class="bm-bars"><i></i><i></i><i></i></div></div>
+  <div id="boostPop" hidden><b></b><small></small></div>
   <div id="labels"></div>
   <div id="caption" hidden></div>
   <div id="banner" hidden><div class="b1" id="b1"></div><div class="b2" id="b2"></div></div>
@@ -102,12 +105,12 @@
     <div class="card-body">
       <h2>操作說明</h2>
       <table>
-        <tr><th>開車</th><td><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 或方向鍵；<kbd>Shift</kbd> 加速；<kbd>空白</kbd> 煞車</td></tr>
+        <tr><th>開車</th><td><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 或方向鍵；<kbd>空白</kbd> 煞車；按住 <kbd>Shift</kbd> 三段加速：加速 → 衝刺 → 極速（放開、煞車或撞到就回一般速度）</td></tr>
         <tr><th>空拍</th><td><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 移動；<kbd>E</kbd>/<kbd>Q</kbd> 上升/下降；拖曳滑鼠轉視角</td></tr>
         <tr><th>視角</th><td>拖曳滑鼠旋轉、滾輪縮放</td></tr>
         <tr><th>快捷鍵</th><td><kbd>Y</kbd> 年份 <kbd>F</kbd> 開車/空拍 <kbd>N</kbd> 日夜 <kbd>T</kbd> 導覽 <kbd>R</kbd> 回到道路 <kbd>G</kbd> 外送賽</td></tr>
         <tr><th>外送賽</th><td>在 2033 年的園區裡依序送 5 單。每單都有任務榜：進前 10 名時計時暫停，可以馬上登錄，或繼續送、最後連同總榜一起登錄（輸入 3 個英文字母）</td></tr>
-        <tr><th>手機</th><td>左下搖桿控制方向；右側按鈕上升／下降／加速</td></tr>
+        <tr><th>手機</th><td>左下搖桿控制方向；右側按鈕上升／下降；按住 ⚡ 三段加速</td></tr>
       </table>
       <p class="fine">地圖資料：© OpenStreetMap 貢獻者（ODbL）。照片：Wikimedia Commons（作者與授權見介紹網站）。</p>
       <button class="btn primary" id="helpOk">知道了</button>

@@ -52,6 +52,7 @@ returns jsonb language sql stable security definer set search_path = public as $
     group by g.leg
   )
   select jsonb_build_object(
+    'rev', 2,   -- the game only uses the shared boards when this matches (3d/js/board.js REV)
     'total', coalesce((select rows from boards where leg = 0), '[]'::jsonb),
     'legs', coalesce((select jsonb_agg(rows order by leg) from boards where leg > 0), '[]'::jsonb))
 $$;
@@ -62,7 +63,7 @@ create or replace function public.submit_score(p_course text, p_initials text, p
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare
   c jsonb := public.race_course(p_course);
-  vmax constant numeric := 52.5;   -- the taxi's top speed with boost is 52 m/s
+  vmax constant numeric := 60.5;   -- the taxi's top speed (boost stage Ⅲ) is 58 m/s
   nstops int; ns int; n int; k int := 0; i int; lg int; lms int;
   prev jsonb; cur jsonb; st jsonb; dt numeric; d numeric; rad numeric; who text;
   out jsonb := '{}'::jsonb;

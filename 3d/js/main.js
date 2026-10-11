@@ -39,7 +39,8 @@ scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnviron
 scene.environmentIntensity = 0.55;
 const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 1.5, 26000);
 // phones in portrait see a very narrow slice at 60°; open the lens up so roads and checkpoints stay in view
-const fitFov = () => { const a = innerWidth / innerHeight; camera.aspect = a; camera.fov = a >= 1 ? 60 : Math.min(78, 60 + (1 - a) * 34); camera.updateProjectionMatrix(); };
+let baseFov = 60, fovKick = 0;   // fovKick: extra lens angle while boosting
+const fitFov = () => { const a = innerWidth / innerHeight; camera.aspect = a; baseFov = a >= 1 ? 60 : Math.min(78, 60 + (1 - a) * 34); camera.fov = baseFov + fovKick; camera.updateProjectionMatrix(); };
 fitFov();
 camera.position.set(0, 600, 1200);
 scene.fog = new THREE.Fog(0xcfd8e3, 1500, 9000);
@@ -84,6 +85,8 @@ const S = {
   cam: { yaw: 0, pitch: 0.28, dist: 16, drag: false, lx: 0, ly: 0, userYawT: 0 },
   money: 0, moneyTarget: 0,
   race: null, // 2033 外送王 run in progress
+  bst: { lv: 0, t: 0, fx: 0, shake: 0, flash: 0, kick: 0 }, // boost stage, time in stage, effect level 0-1, shake, flash, nose kick
+  shakeOff: new THREE.Vector3(),
 };
 const tmpV = new THREE.Vector3(), tmpV2 = new THREE.Vector3();
 
@@ -204,6 +207,7 @@ async function build() {
   buildLandmarks(D);
   buildTraffic();
   buildPlayer(D);
+  buildBoostFx();
   buildLabels(D);
   minimapImgs = [drawMinimap(D, 0), drawMinimap(D, 1)];
   S.ready = true;
@@ -950,6 +954,144 @@ function updateTour(dt) {
   if (t > 60) { endTour(); banner('導覽結束', '換你親自開車探索吧！', 2500); }
 }
 
+// ---------------- boost: hold Shift / ⚡ to climb three stages ----------------
+// Ⅰ 加速 → Ⅱ 衝刺 → Ⅲ 極速. A stage opens once the button has been held long enough and the taxi is close to the
+// current top speed. Each one widens the lens, adds manga speed lines, wind streaks and exhaust flames;
+// reaching Ⅲ breaks the "sound barrier" with a flash and a shock ring.
+const BOOST = {
+  max: [30, 40, 49, 58],   // top speed per stage, m/s (58 m/s ≈ 209 km/h; the leaderboard check allows 60.5)
+  acc: [12, 18, 22, 26],   // throttle acceleration per stage, m/s²
+  hold: [0, 1.0, 1.4],     // seconds in a stage before the next can open
+  word: ['', '加速！', '衝刺！！', '極速！！！'],
+  tag: ['BOOST', 'BOOST Ⅰ', 'BOOST Ⅱ', 'BOOST MAX'],
+  col: [0xffffff, 0xffa53d, 0x46c8ff, 0xc56bff],
+};
+const fx = { streaks: null, sd: [], flames: [], ring: null, ringT: 0, cv: $('fx'), g: null, w: 0, h: 0, on: false, meter: '' };
+const _bm = new THREE.Matrix4(), _bq = new THREE.Quaternion(), _bs = new THREE.Vector3(), _bp = new THREE.Vector3();
+const glow = (color, opacity) => new THREE.MeshBasicMaterial({ color, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+function buildBoostFx() {
+  taxi.rotation.order = 'YXZ';   // so the nose kick pitches about the taxi's own axis
+  // wind streaks: thin bright sticks rushing past the sides and over the roof
+  const N = 40;
+  fx.streaks = new THREE.InstancedMesh(new THREE.BoxGeometry(0.04, 0.04, 1), glow(0xeaf6ff, 0), N);
+  fx.streaks.frustumCulled = false; fx.streaks.visible = false;
+  fx.sd = Array.from({ length: N }, () => streakSpawn({}, true));
+  taxi.add(fx.streaks);
+  // twin exhaust flames: a cone in the stage colour around a white core, pointing backwards
+  const cone = (r) => new THREE.ConeGeometry(r, 1, 10, 1, true).rotateX(-Math.PI / 2).translate(0, 0, -0.5);
+  for (const x of [-0.45, 0.45]) {
+    const outer = new THREE.Mesh(cone(0.17), glow(0xffa53d, 0.85)), core = new THREE.Mesh(cone(0.075), glow(0xffffff, 0.95));
+    outer.position.set(x, 0.42, -2.27); core.position.copy(outer.position);
+    outer.visible = core.visible = false; taxi.add(outer, core); fx.flames.push([outer, core]);
+  }
+  // shock ring for stage Ⅲ
+  fx.ring = new THREE.Mesh(new THREE.RingGeometry(0.82, 1, 56), glow(0xffffff, 0)); fx.ring.visible = false; scene.add(fx.ring);
+}
+function streakSpawn(s, anywhere) {
+  const r = Math.random();
+  if (r < 0.8) { s.x = (r < 0.4 ? -1 : 1) * (1.05 + Math.random() * 0.75); s.y = 0.35 + Math.random() * 1.65; }
+  else { s.x = (Math.random() - 0.5) * 1.6; s.y = 1.95 + Math.random() * 0.6; }   // over the roof
+  s.z = anywhere ? -9 + Math.random() * 13 : 2.5 + Math.random() * 3;
+  s.len = 0.5 + Math.random() * 1.1;
+  return s;
+}
+function boostUp(n) {
+  const B = S.bst; B.lv = n; B.t = 0; B.kick = 1;
+  B.shake = Math.max(B.shake, [0, 0.25, 0.55, 1][n]);
+  if (n === 3) {
+    B.flash = 1; fx.ringT = 0.7; fx.ring.visible = true;
+    fx.ring.rotation.set(0, S.car.h, 0);
+  }
+  const el = $('boostPop');
+  el.className = 'lv' + n; el.querySelector('b').textContent = BOOST.word[n]; el.querySelector('small').textContent = BOOST.tag[n];
+  el.hidden = false; el.style.animation = 'none'; void el.offsetWidth; el.style.animation = '';
+  clearTimeout(el._t); el._t = setTimeout(() => el.hidden = true, 950);
+  try { if (navigator.vibrate) navigator.vibrate([0, 20, 45, [60, 40, 90]][n]); } catch { /* not allowed */ }
+}
+function updateBoostFx(dt) {
+  const B = S.bst, c = S.car, driving = S.mode === 'drive' && !S.paused && $('intro').hidden;
+  if (!driving && B.lv) { B.lv = 0; B.t = 0; }
+  if (!driving) S.shakeOff.set(0, 0, 0);
+  const target = B.lv / 3;
+  B.fx += (target - B.fx) * Math.min(1, dt * (target > B.fx ? 6 : 2.2));
+  B.shake *= Math.pow(0.03, dt); B.flash *= Math.pow(0.0015, dt); B.kick *= Math.pow(0.012, dt);
+  const sp = Math.abs(c.v);
+  // the lens opens with the stage (and a little with plain speed)
+  const want = driving ? Math.min(B.fx * 14 + Math.min(1, sp / 58) * 4, 92 - baseFov) : 0;   // portrait phones start wide: cap at 92°
+  fovKick += (want - fovKick) * Math.min(1, dt * 4);
+  const fov = baseFov + fovKick;
+  if (Math.abs(camera.fov - fov) > 0.02) { camera.fov = fov; camera.updateProjectionMatrix(); }
+  // taxi body: nose lifts on each stage, a buzz at full speed
+  taxi.rotation.x = driving ? -B.kick * 0.065 - (B.lv === 3 ? Math.random() * 0.006 : 0) : 0;
+  // wind streaks, faster and longer with the stage
+  const sv = B.fx > 0.02 && driving;
+  fx.streaks.visible = sv;
+  if (sv) {
+    fx.streaks.material.opacity = 0.25 + B.fx * 0.55;
+    const flow = Math.max(sp, 20) * (1.1 + B.fx * 0.6);
+    fx.sd.forEach((s, i) => {
+      const L = s.len * (1 + B.fx * 3.5);
+      s.z -= flow * dt;
+      if (s.z + L < -9) streakSpawn(s, false);
+      _bp.set(s.x, s.y, s.z + L / 2); _bs.set(1, 1, L);
+      fx.streaks.setMatrixAt(i, _bm.compose(_bp, _bq, _bs));
+    });
+    fx.streaks.instanceMatrix.needsUpdate = true;
+  }
+  // exhaust: longer, wider and hotter per stage, flickering
+  for (const [o, core] of fx.flames) {
+    o.visible = core.visible = driving && B.lv > 0 && B.fx > 0.05;
+    if (!o.visible) continue;
+    const L = (0.45 + B.lv * 0.6) * (0.7 + Math.random() * 0.6), w = 1 + B.lv * 0.3;
+    o.scale.set(w, w, L); core.scale.set(1, 1, L * 0.62); o.material.color.setHex(BOOST.col[B.lv]);
+  }
+  // stage Ⅲ shock ring: spreads out behind the taxi
+  if (fx.ringT > 0) {
+    fx.ringT -= dt; const k = 1 - Math.max(0, fx.ringT) / 0.7;
+    fx.ring.position.set(c.x - Math.sin(c.h) * k * 9, 1.1, c.z - Math.cos(c.h) * k * 9);
+    fx.ring.scale.setScalar(1.6 + k * 15); fx.ring.material.opacity = (1 - k) * 0.85;
+    if (fx.ringT <= 0) fx.ring.visible = false;
+  }
+  drawSpeedLines(B);
+  // HUD: three-bar meter, ⚡ button glow, speedometer colour
+  const prog = B.lv > 0 && B.lv < 3 ? Math.min(1, B.t / BOOST.hold[B.lv]) * Math.min(1, c.v / (BOOST.max[B.lv] * 0.9)) : 0;
+  const key = `${driving ? B.lv : -1}|${Math.round(prog * 20)}`;
+  if (key !== fx.meter) {
+    fx.meter = key;
+    const m = $('boostMeter'); m.hidden = !driving; m.className = `panel lv${B.lv}`;
+    $('bmTag').textContent = BOOST.tag[B.lv];
+    m.querySelectorAll('i').forEach((el, j) => el.style.setProperty('--p', j < B.lv ? 1 : j === B.lv ? prog : 0));
+    $('tBoost').className = `tbtn lv${B.lv}`; $('speedo').className = `panel lv${B.lv}`;
+  }
+}
+// manga speed lines over the whole screen: white streaks from stage Ⅰ, black focus lines and a vignette from Ⅱ
+function drawSpeedLines(B) {
+  const cv = fx.cv, active = B.fx > 0.02 || B.flash > 0.02;
+  if (!active) { if (fx.on) { fx.g.clearRect(0, 0, fx.w, fx.h); cv.hidden = true; fx.on = false; } return; }
+  const g = fx.g || (fx.g = cv.getContext('2d')), W = innerWidth, H = innerHeight;
+  if (fx.w !== W || fx.h !== H) { cv.width = fx.w = W; cv.height = fx.h = H; }
+  if (!fx.on) { cv.hidden = false; fx.on = true; }
+  g.clearRect(0, 0, W, H);
+  const e = B.fx, cx = W / 2, cy = H * 0.45, R = Math.hypot(W, H) / 2 + 30, inner = R * (0.8 - e * 0.38);
+  if (e > 0.4) {
+    const gr = g.createRadialGradient(cx, cy, R * 0.3, cx, cy, R);
+    gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(1, `rgba(0,0,0,${((e - 0.4) * 0.6).toFixed(3)})`);
+    g.fillStyle = gr; g.fillRect(0, 0, W, H);
+  }
+  const lines = (n, r0, r1, w0, w1, style) => {
+    g.beginPath();
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a);
+      const ri = r0 + Math.random() * r1, w = w0 + Math.random() * w1, px = -sa * w / 2, py = ca * w / 2;
+      g.moveTo(cx + ca * ri, cy + sa * ri); g.lineTo(cx + ca * R + px, cy + sa * R + py); g.lineTo(cx + ca * R - px, cy + sa * R - py); g.closePath();
+    }
+    g.fillStyle = style; g.fill();
+  };
+  lines(Math.round(16 + e * 70), inner, R * 0.25, 1, 2 + e * 5, `rgba(255,255,255,${(0.2 + e * 0.4).toFixed(3)})`);
+  if (e > 0.45) lines(Math.round((e - 0.45) * 170), inner * 1.04, R * 0.3, 1.5, 3 + e * 9, `rgba(8,8,12,${Math.min(0.85, (e - 0.45) * 1.6).toFixed(3)})`);
+  if (B.flash > 0.02) { g.fillStyle = `rgba(255,255,255,${(B.flash * 0.7).toFixed(3)})`; g.fillRect(0, 0, W, H); }
+}
+
 // ---------------- 2033 外送王: timed five-order delivery race ----------------
 // Every order has its own board (任務榜) and the whole run has the total board (總榜). An order that makes its
 // board pauses the clock and offers to register now or keep going and register everything at the end.
@@ -1234,18 +1376,25 @@ function updateCar(dt) {
   let st = (k.KeyA || k.ArrowLeft ? 1 : 0) - (k.KeyD || k.ArrowRight ? 1 : 0) - S.joy.x;
   thr = THREE.MathUtils.clamp(thr, -1, 1); st = THREE.MathUtils.clamp(st, -1, 1);
   if (S.race && S.race.phase !== 'run') { thr = st = 0; c.v = 0; }   // countdown / finished: wait at the line
-  const boost = k.ShiftLeft || k.ShiftRight || S.boost;
-  const max = boost ? 52 : 30;
-  if (thr > 0) c.v += thr * (boost ? 20 : 12) * dt; else if (thr < 0) c.v += thr * (c.v > 0 ? 26 : 9) * dt;
+  // boost: holding Shift / ⚡ with the throttle on climbs the stages; letting go or braking drops back
+  const B = S.bst, want = (k.ShiftLeft || k.ShiftRight || S.boost) && thr > 0 && !k.Space;
+  if (want && c.v > 4) {
+    if (B.lv === 0) boostUp(1);
+    else if (B.lv < 3) { B.t += dt; if (B.t >= BOOST.hold[B.lv] && c.v >= BOOST.max[B.lv] * 0.9) boostUp(B.lv + 1); }
+  } else if (B.lv) { B.lv = 0; B.t = 0; }
+  const max = BOOST.max[B.lv];
+  if (thr > 0) { if (c.v < max) c.v = Math.min(max, c.v + thr * BOOST.acc[B.lv] * dt); } else if (thr < 0) c.v += thr * (c.v > 0 ? 26 : 9) * dt;
   if (k.Space) c.v *= Math.pow(0.08, dt);
   c.v *= Math.pow(thr === 0 ? 0.55 : 0.985, dt);
-  c.v = THREE.MathUtils.clamp(c.v, -12, max);
+  if (c.v > max) c.v = Math.max(max, c.v - (c.v - max) * Math.min(1, dt * 1.6) - 2 * dt);   // ease down after a boost instead of snapping
+  c.v = Math.max(c.v, -12);
   c.steer += (st - c.steer) * Math.min(1, dt * 8);
   c.h += c.steer * dt * 1.9 * THREE.MathUtils.clamp(c.v / 9, -1, 1);
   const nx = c.x + Math.sin(c.h) * c.v * dt, nz = c.z + Math.cos(c.h) * c.v * dt;
   const stuck = blocked(c.x, c.z);   // never trap the car if it is already inside a footprint
   if (!stuck && blocked(nx, nz)) {
-    if (Math.abs(c.v) > 12) toast('碰！小心駕駛 🚧', 1200);
+    if (Math.abs(c.v) > 12) { toast('碰！小心駕駛 🚧', 1200); S.bst.shake = Math.max(S.bst.shake, Math.min(1, Math.abs(c.v) / 40)); }
+    B.lv = 0; B.t = 0;
     c.v *= -0.25;
     if (!blocked(nx, c.z)) c.x = nx; else if (!blocked(c.x, nz)) c.z = nz;
   } else { c.x = nx; c.z = nz; }
@@ -1255,12 +1404,21 @@ function updateCar(dt) {
   $('spd').textContent = Math.round(Math.abs(c.v) * 3.6);
   // chase camera
   if (S.cam.userYawT > 0) S.cam.userYawT -= dt; else S.cam.yaw += (0 - S.cam.yaw) * Math.min(1, dt * 1.5);
-  const yaw = c.h + Math.PI + S.cam.yaw, dist = S.cam.dist + Math.abs(c.v) * 0.12;
-  tmpV.set(c.x + Math.sin(yaw) * dist * Math.cos(S.cam.pitch), 2 + dist * Math.sin(S.cam.pitch), c.z + Math.cos(yaw) * dist * Math.cos(S.cam.pitch));
+  // boosting pulls the camera in low and leads it by the speed, so the taxi stays big on screen instead of running away
+  const pitch = Math.max(0.08, S.cam.pitch - B.fx * 0.09), lead = c.v * 0.1;
+  const yaw = c.h + Math.PI + S.cam.yaw, dist = S.cam.dist + Math.abs(c.v) * 0.12 * (1 - B.fx * 0.65);
+  tmpV.set(c.x + Math.sin(yaw) * dist * Math.cos(pitch) + Math.sin(c.h) * lead, 2 + dist * Math.sin(pitch), c.z + Math.cos(yaw) * dist * Math.cos(pitch) + Math.cos(c.h) * lead);
+  camera.position.sub(S.shakeOff);   // take last frame's shake out before smoothing
   camera.position.lerp(tmpV, 1 - Math.pow(0.0005, dt));
   if (!S.look) S.look = new THREE.Vector3(c.x, 2.2, c.z);
   S.look.lerp(tmpV2.set(c.x, 2.2, c.z), 1 - Math.pow(0.00002, dt));
   camera.lookAt(S.look);
+  // shake: a jolt on every stage change or crash, a steady rumble in stages Ⅱ and Ⅲ
+  const amp = B.shake * 0.55 + (B.lv >= 2 ? (B.lv - 1) * 0.045 : 0);
+  if (amp > 0.004) {
+    S.shakeOff.set((Math.random() - 0.5) * amp, (Math.random() - 0.5) * amp, (Math.random() - 0.5) * amp);
+    camera.position.add(S.shakeOff); camera.rotateZ((Math.random() - 0.5) * amp * 0.06);
+  } else S.shakeOff.set(0, 0, 0);
 }
 const _qd = new THREE.Quaternion(), _ed = new THREE.Euler();
 function updateDrone(dt) {
@@ -1462,6 +1620,7 @@ function loop() {
     updatePlanes(t);
     updateFutureLife(dt, t);
     if (ferris) ferris.userData.wheel.rotation.z = t * 0.05;
+    updateBoostFx(dt);
     const cinematic = S.mode === 'tour' || S.mode === 'cutscene';
     if (S.cpLabel && currentTarget()) S.cpLabel.hidden = cinematic;   // keep the checkpoint out of the cinematic shots
     checkpointMesh.visible = !!currentTarget() && !cinematic;

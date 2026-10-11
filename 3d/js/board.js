@@ -6,6 +6,7 @@ export const BOARD = {
   key: 'sb_publishable_Fe_h6sRUasUjh3jCuXkgKA_qtCRfwpM',   // publishable (public) key: the database only accepts runs through submit_score()
 };
 export const TOP = 10;   // places shown on each board, and what counts as "making the board"
+const REV = 2;           // must match race_boards() 'rev' in supabase.sql (an older database would reject today's top speed)
 
 // three-letter names the boards refuse (also enforced in the database)
 const BLOCK = new Set(('ASS CUM COK CNT DIC DIK FAG FCK FUC FUK FUQ FKU JIZ KKK KYS NGR NIG SEX SHT TIT VAG XXX ' +
@@ -13,6 +14,7 @@ const BLOCK = new Set(('ASS CUM COK CNT DIC DIK FAG FCK FUC FUK FUQ FKU JIZ KKK 
 export const refused = (s) => BLOCK.has(s);
 export const isShared = () => !!(BOARD.url && BOARD.key);
 
+let sharedOk = false;   // the shared boards answered with the right version this session
 const lsKey = (course) => `ai2033.race.${course}`;
 const clean = (rows) => (Array.isArray(rows) ? rows : []).filter(r => r && /^[A-Z]{3}$/.test(r.i) && Number.isFinite(r.ms));
 // this device's boards: { total: [{ i, ms }], legs: [[{ i, ms }] × stops] }
@@ -48,6 +50,8 @@ export async function boards(course, nLegs) {
   if (isShared()) {
     try {
       const b = await rpc('race_boards', { p_course: course, p_limit: TOP });
+      if (b.rev !== REV) throw new Error('database needs the current supabase.sql');
+      sharedOk = true;
       return { shared: true, total: clean(b.total), legs: Array.from({ length: nLegs }, (_, k) => clean((b.legs || [])[k])) };
     } catch { /* fall back to this device */ }
   }
@@ -66,7 +70,7 @@ export async function submit(course, nLegs, run) {
   }
   writeLocal(course, b);
   const local = { shared: false, ranks };
-  if (!isShared()) return local;
+  if (!isShared() || !sharedOk) return local;
   try {
     const r = await rpc('submit_score', { p_course: course, p_initials: run.initials, p_legs: run.legs, p_splits: run.splits, p_trace: run.trace });
     return { shared: true, ranks: r };

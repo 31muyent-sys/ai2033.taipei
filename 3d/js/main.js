@@ -10,7 +10,8 @@ import {
   U, flatToPts, ringsOf, flatPolys, ribbons, pointInRing, signedArea, patchBuildingMaterial, patchRoadMaterial, waterMaterial,
   buildBuildings, makeTreeGeometries, makePlane, makeTaxi, makeTaipei101, makeGrandHotel, makeFerrisWheel, mergeGeometries,
 } from './city.js';
-import { PHOTO, INTRO, MISSIONS, CHECKPOINTS, FINALE, STATS, TOUR } from './content.js';
+import { PHOTO, INTRO, MISSIONS, CHECKPOINTS, FINALE, STATS, TOUR, RACE } from './content.js';
+import * as board from './board.js';
 
 const $ = (id) => document.getElementById(id);
 const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
@@ -82,6 +83,7 @@ const S = {
   drone: { pos: new THREE.Vector3(), yaw: 0, pitch: -0.5 },
   cam: { yaw: 0, pitch: 0.28, dist: 16, drag: false, lx: 0, ly: 0, userYawT: 0 },
   money: 0, moneyTarget: 0,
+  race: null, // 2033 外送王 run in progress
 };
 const tmpV = new THREE.Vector3(), tmpV2 = new THREE.Vector3();
 
@@ -206,7 +208,8 @@ async function build() {
   minimapImgs = [drawMinimap(D, 0), drawMinimap(D, 1)];
   S.ready = true;
   setLoad(1, '完成！按「開始任務」上路');
-  $('btnStart').disabled = false; $('btnTour').disabled = false;
+  $('btnStart').disabled = false; $('btnTour').disabled = false; $('btnRace').disabled = false;
+  if (/[?&]race\b/.test(location.search)) startRace();   // shared challenge links drop straight into the race
 }
 
 function makeGroundTexture() {
@@ -737,8 +740,10 @@ function blocked(x, z) {
 // ---------------- input ----------------
 addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT') return;
+  if (!$('raceEnd').hidden) { initialsKey(e); return; }
   S.keys[e.code] = true;
   if (S.mode === 'intro') return;
+  if (e.code === 'KeyG' && !S.race) startRace();
   if (e.code === 'KeyY') toggleYear();
   if (e.code === 'KeyF') toggleMode();
   if (e.code === 'KeyN') cycleTime();
@@ -772,6 +777,8 @@ canvas.addEventListener('wheel', (e) => { S.cam.dist = THREE.MathUtils.clamp(S.c
 // ---------------- UI wiring ----------------
 $('btnStart').onclick = () => startGame(false);
 $('btnTour').onclick = () => startGame(true);
+$('btnRace').onclick = () => startRace();
+$('tbRace').onclick = () => (S.race ? leaveRace() : startRace());
 $('tbYear').onclick = () => toggleYear();
 $('tbMode').onclick = () => toggleMode();
 $('tbTime').onclick = () => cycleTime();
@@ -802,6 +809,7 @@ function setMission(i) {
   updateCheckpoint();
 }
 function currentTarget() {
+  if (S.race) { const st = RACE.stops[S.race.stop]; return st ? { x: st.at[0], z: st.at[1], label: `${st.icon} ${st.to}` } : null; }
   if (S.mission === 0) return { x: S.terminal[0], z: S.terminal[1], label: '松山機場航廈' };
   if (S.mission === 1 && S.cpIndex < CHECKPOINTS.length) { const cp = CHECKPOINTS[S.cpIndex]; const p = S.zoneCentres[cp.key]; return { x: p[0], z: p[1], label: cp.label }; }
   return null;
@@ -815,6 +823,7 @@ function updateCheckpoint() {
   S.cpLabel.pos.set(t.x, 30, t.z); S.cpLabel.el.textContent = '★ ' + t.label; S.cpLabel.w = 0;
 }
 function checkMission() {
+  if (S.race) return;   // deliveries are checked by updateRace
   const t = currentTarget(); if (!t) return;
   const px = S.mode === 'drone' ? S.drone.pos.x : S.car.x, pz = S.mode === 'drone' ? S.drone.pos.z : S.car.z;
   const r = S.mode === 'drone' ? 90 : 30;
@@ -853,7 +862,7 @@ function finale() {
 }
 
 // year / time / mode
-function toggleYear() { setYear(S.yearTarget > 0.5 ? 0 : 1); }
+function toggleYear() { if (raceLock()) return; setYear(S.yearTarget > 0.5 ? 0 : 1); }
 function setYear(y) {
   S.yearTarget = y; future.visible = true;
   banner(y ? '2033' : '2026', y ? '松山機場 → 臺北AI園區' : '回到現在：松山機場', 2200);
@@ -865,6 +874,7 @@ function setTime(m) {
   $('tbTime').innerHTML = names[m];
 }
 function toggleMode() {
+  if (raceLock()) return;
   if (S.mode === 'tour') endTour();
   if (S.mode === 'drive') {
     S.mode = 'drone'; S.drone.pos.set(S.car.x - Math.sin(S.car.h) * 45, 180, S.car.z - Math.cos(S.car.h) * 45); S.drone.yaw = S.car.h + Math.PI; S.drone.pitch = -0.7;
@@ -876,6 +886,7 @@ function toggleMode() {
   }
 }
 function resetCar() {
+  if (S.race && S.race.phase === 'run') return;   // no teleports mid-race
   // put the car on the nearest major-road point that is not inside a building
   let best = null, bd = Infinity;
   for (const r of trafficRoads) for (const p of r.pts) { const d = Math.hypot(p[0] - S.car.x, p[1] - S.car.z); if (d < bd && !blocked(p[0], p[1])) { bd = d; best = p; } }
@@ -905,7 +916,7 @@ function updateCutscene(dt) {
 
 // ---------------- tour ----------------
 function startTour() {
-  if (!S.D) return;
+  if (!S.D || raceLock()) return;
   if (S.mode !== 'tour') { S.prevMode = S.mode; S.prevYear = S.yearTarget; }
   S.mode = 'tour'; S.tour = { t: 0 };
   S.yearTarget = 0; $('caption').hidden = false; toast('導覽中：按任一工具列按鈕可離開', 2500);
@@ -938,12 +949,184 @@ function updateTour(dt) {
   if (t > 60) { endTour(); banner('導覽結束', '換你親自開車探索吧！', 2500); }
 }
 
+// ---------------- 2033 外送王: timed five-order delivery race ----------------
+const SITE = 'https://ai2033.taipei/3d/';
+const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+// a shared link can carry the sender's run: ?race&vs=ABC.83450
+const RACE_VS = (() => { const m = /[?&]vs=([A-Z]{3})\.(\d{5,7})\b/.exec(location.search); return m ? { i: m[1], ms: +m[2] } : null; })();
+const fmtTime = (ms) => `${Math.floor(ms / 60000)}:${((ms % 60000) / 1000).toFixed(2).padStart(5, '0')}`;
+function raceLock() {
+  if (!S.race || S.race.phase === 'done') return false;
+  toast('比賽中不能用這個功能，先把餐送完吧 🛵', 1800); return true;
+}
+function startRace() {
+  if (!S.ready) return;
+  ['card', 'help', 'finale', 'raceEnd'].forEach(id => $(id).hidden = true); S.paused = false;
+  if (S.mode === 'tour') endTour();
+  $('intro').hidden = true; $('hud').hidden = false; if (isTouch) $('touch').hidden = false;
+  S.mode = 'drive'; $('tbMode').innerHTML = '🚁 <b>空拍</b>'; $('caption').hidden = true;
+  // the race runs in 2033: jump there
+  S.yearTarget = S.year = 1; future.visible = true; S._futInit = false;
+  const [x, z] = RACE.start, f = RACE.stops[0].at, c = S.car;
+  c.x = x; c.z = z; c.v = 0; c.steer = 0; c.h = Math.atan2(f[0] - x, f[1] - z);
+  S.cam.yaw = 0; S.cam.userYawT = 0; S.look = null;
+  camera.position.set(x - Math.sin(c.h) * 40, 26, z - Math.cos(c.h) * 40);
+  const prev = S.race ? S.race.prevMission : S.mission;
+  S.race = { phase: 'count', t: -3.4, stop: 0, splits: [], trace: [], next: 0, shown: null, vs: RACE_VS, prevMission: prev };
+  $('mTimer').hidden = false; $('mTimer').textContent = fmtTime(0); $('mTimer').classList.remove('done');
+  $('tbRace').innerHTML = '✕ <b>退出比賽</b>';
+  showRaceStop();
+}
+function showRaceStop() {
+  const r = S.race, st = RACE.stops[r.stop];
+  $('mTitle').textContent = `🏁 ${RACE.title}・第 ${Math.min(r.stop + 1, RACE.stops.length)}/${RACE.stops.length} 單`;
+  $('mHint').textContent = st ? `${st.icon} ${st.item} → ${st.to}（${st.note}）` : '全部送達！';
+  const prog = $('mProg'); prog.innerHTML = '';
+  RACE.stops.forEach((_, k) => { const d = document.createElement('i'); if (k < r.stop) d.className = 'on'; prog.appendChild(d); });
+  updateCheckpoint();
+}
+function updateRace(dt) {
+  const r = S.race;
+  if (r.phase === 'count') {
+    r.t += dt;
+    const n = Math.ceil(-r.t);
+    if (n !== r.shown && n >= 1 && n <= 3) { r.shown = n; banner(String(n), n === 3 ? (r.vs ? `挑戰 ${r.vs.i} 的 ${fmtTime(r.vs.ms)}` : `${RACE.stops.length} 單外送，越快越好`) : '', 950); }
+    if (r.t >= 0) { r.phase = 'run'; r.t = 0; banner('GO!', '🛵 出發送餐！', 1100); }
+    return;
+  }
+  if (r.phase !== 'run') return;
+  r.t += dt;
+  const ms = Math.round(r.t * 1000), c = S.car;
+  if (ms >= r.next) { r.trace.push([ms, Math.round(c.x), Math.round(c.z)]); r.next += 500; }   // route sample every 0.5 s for the leaderboard check
+  $('mTimer').textContent = fmtTime(ms);
+  const st = RACE.stops[r.stop];
+  if (Math.hypot(c.x - st.at[0], c.z - st.at[1]) <= RACE.radius) {
+    r.splits.push(ms); r.trace.push([ms, Math.round(c.x), Math.round(c.z)]);
+    r.stop++;
+    const nx = RACE.stops[r.stop];
+    if (!nx) { finishRace(ms); return; }
+    toast(`${st.icon} ${st.item}送達！下一單：${nx.icon} ${nx.item} → ${nx.to}`, 2400);
+    showRaceStop();
+  } else if (ms > 15 * 60 * 1000) { leaveRace(); toast('超過 15 分鐘，外送賽結束', 2600); }
+}
+function finishRace(ms) {
+  const r = S.race; r.phase = 'done'; r.ms = ms; r.submitted = false;
+  $('mTimer').textContent = fmtTime(ms); $('mTimer').classList.add('done');
+  showRaceStop();
+  banner('全部送達！', fmtTime(ms), 2200);
+  setTimeout(() => { if (S.race === r) openRaceEnd(); }, 1700);
+}
+function leaveRace() {
+  const r = S.race; if (!r) return;
+  S.race = null;
+  $('raceEnd').hidden = true; $('mTimer').hidden = true; $('tbRace').innerHTML = '🏁 <b>外送賽</b>';
+  S.cpIndex = Math.min(S.cpIndex, CHECKPOINTS.length - 1);
+  setMission(r.prevMission === 0 ? 1 : r.prevMission);   // the race left us in 2033, so the airport mission is done
+}
+
+// result screen: time, legs, arcade-style initials, leaderboard, share
+const INIT = { s: 'AAA', k: 0 };
+function openRaceEnd() {
+  const r = S.race, ms = r.ms;
+  const pb = board.personalBest(RACE.id), isPb = !pb || ms < pb;
+  if (isPb) board.savePersonalBest(RACE.id, ms);
+  $('reTime').textContent = fmtTime(ms);
+  const notes = [isPb ? (pb ? `🎉 個人新紀錄！比之前快 ${((pb - ms) / 1000).toFixed(2)} 秒` : '🎉 第一次完賽！') : `個人最佳 ${fmtTime(pb)}`];
+  if (r.vs) notes.push(ms < r.vs.ms ? `🏆 你贏了 ${r.vs.i}（${fmtTime(r.vs.ms)}）！` : `差 ${r.vs.i} ${((ms - r.vs.ms) / 1000).toFixed(2)} 秒，再一次？`);
+  $('reNote').textContent = notes.join('　');
+  $('reSplits').innerHTML = RACE.stops.map((st, k) => {
+    const leg = r.splits[k] - (k ? r.splits[k - 1] : 0);
+    return `<li><span>${st.icon} ${st.item} → ${st.to}</span><b>${(leg / 1000).toFixed(2)} 秒</b></li>`;
+  }).join('');
+  INIT.s = board.lastInitials(); INIT.k = 0; drawInitials();
+  $('reEntry').hidden = false; $('reSubmit').disabled = false; $('reMsg').textContent = '';
+  $('reShareRow').hidden = true;
+  $('raceEnd').hidden = false;
+  loadBoard(null);
+}
+function drawInitials() {
+  $('reInit').querySelectorAll('.slot').forEach((el, k) => { el.querySelector('b').textContent = INIT.s[k]; el.classList.toggle('on', k === INIT.k); });
+}
+function bumpLetter(k, d) {
+  const a = INIT.s.split(''); a[k] = LETTERS[(LETTERS.indexOf(a[k]) + d + 26) % 26]; INIT.s = a.join(''); INIT.k = k; drawInitials();
+}
+function initialsKey(e) {
+  if (S.race && S.race.submitted) { if (e.code === 'Enter') startRace(); return; }
+  const ch = e.key && e.key.length === 1 ? e.key.toUpperCase() : '';
+  if (ch && LETTERS.includes(ch)) { const a = INIT.s.split(''); a[INIT.k] = ch; INIT.s = a.join(''); INIT.k = Math.min(2, INIT.k + 1); drawInitials(); }
+  else if (e.code === 'ArrowUp') bumpLetter(INIT.k, -1);
+  else if (e.code === 'ArrowDown') bumpLetter(INIT.k, 1);
+  else if (e.code === 'ArrowLeft' || e.code === 'Backspace') { INIT.k = Math.max(0, INIT.k - 1); drawInitials(); }
+  else if (e.code === 'ArrowRight') { INIT.k = Math.min(2, INIT.k + 1); drawInitials(); }
+  else if (e.code === 'Enter') submitRun();
+  else return;
+  e.preventDefault();
+}
+// ▲▼ buttons repeat while held, like an arcade cabinet
+$('reInit').querySelectorAll('.slot').forEach((el, k) => {
+  el.querySelector('b').onclick = () => { INIT.k = k; drawInitials(); };
+  for (const [sel, d] of [['.up', -1], ['.dn', 1]]) {
+    const b = el.querySelector(sel); let t1 = 0, t2 = 0;
+    const stop = () => { clearTimeout(t1); clearInterval(t2); };
+    b.addEventListener('pointerdown', (e) => { e.preventDefault(); bumpLetter(k, d); t1 = setTimeout(() => { t2 = setInterval(() => bumpLetter(k, d), 90); }, 380); });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => b.addEventListener(ev, stop));
+  }
+});
+const BOARD_ERR = { rate_limited: '登錄太頻繁了，等幾秒再按一次', implausible: '這筆紀錄沒有通過排行榜檢查，所以沒有上榜', blocked_initials: '這組字母不能用，換一組吧', bad_initials: '請輸入 3 個英文字母', bad_course: '路線版本不同，請重新整理頁面' };
+async function submitRun() {
+  const r = S.race; if (!r || r.submitted || $('reSubmit').disabled) return;
+  if (board.refused(INIT.s)) { $('reMsg').textContent = BOARD_ERR.blocked_initials; return; }
+  $('reSubmit').disabled = true; $('reMsg').textContent = '登錄中…';
+  board.saveInitials(INIT.s);
+  const res = await board.submit(RACE.id, { initials: INIT.s, ms: r.ms, splits: r.splits, trace: r.trace });
+  if (res.reason && ['rate_limited', 'blocked_initials', 'bad_initials'].includes(res.reason)) { $('reMsg').textContent = BOARD_ERR[res.reason]; $('reSubmit').disabled = false; return; }
+  r.submitted = true; r.rank = res.shared ? res.rank : null; r.who = INIT.s;
+  $('reEntry').hidden = true;
+  $('reMsg').textContent = res.reason ? (BOARD_ERR[res.reason] || '排行榜暫時連不上，成績先存在這台裝置') : '';
+  $('reRank').textContent = res.shared ? `${INIT.s}・全台第 ${res.rank} 名（共 ${res.total} 筆）` : `${INIT.s}・這台裝置第 ${res.rank} 名`;
+  loadBoard({ i: INIT.s, ms: r.ms });
+}
+async function loadBoard(me) {
+  const el = $('reBoard');
+  if (!me) $('reRank').textContent = '';
+  const { shared, rows } = await board.top(RACE.id, 10);
+  $('reBoardTitle').textContent = shared ? '🏆 全台排行榜' : '🏆 排行榜（這台裝置）';
+  el.innerHTML = rows.length
+    ? rows.map((x, k) => `<li class="${me && x.i === me.i && x.ms === me.ms ? 'me' : ''}"><span class="rk">${k + 1}</span><b>${x.i}</b><span class="t">${fmtTime(x.ms)}</span></li>`).join('')
+    : '<li class="empty">還沒有人上榜，搶第一！</li>';
+}
+function raceShare() {
+  const r = S.race; if (!r || !r.ms) return;
+  const who = r.who || INIT.s;
+  const url = `${SITE}?race&vs=${who}.${r.ms}`;
+  const text = `我在「臺北 2033 外送王」送完 5 單只花 ${fmtTime(r.ms)}${r.rank ? `，全台排行榜第 ${r.rank} 名` : ''} 🛵 你能比我快嗎？`;
+  const enc = encodeURIComponent;
+  $('shFb').href = `https://www.facebook.com/sharer/sharer.php?u=${enc(url)}`;
+  $('shTh').href = `https://www.threads.net/intent/post?text=${enc(text + ' ' + url)}`;
+  $('shLine').href = `https://social-plugins.line.me/lineit/share?url=${enc(url)}&text=${enc(text)}`;
+  $('shX').href = `https://twitter.com/intent/tweet?text=${enc(text)}&url=${enc(url)}`;
+  $('shText').value = `${text}\n${url}`;
+  $('reShareRow').hidden = false;
+  if (navigator.share) navigator.share({ title: '臺北 2033 外送王', text, url }).catch(() => {});
+}
+$('reSubmit').onclick = () => submitRun();
+$('reAgain').onclick = () => startRace();
+$('reShare').onclick = () => raceShare();
+$('reFree').onclick = () => leaveRace();
+$('shCopy').onclick = () => {
+  const t = $('shText');
+  const done = () => { $('shCopy').textContent = '已複製 ✓'; setTimeout(() => $('shCopy').textContent = '複製', 1800); };
+  const pick = () => { t.focus(); t.select(); $('shCopy').textContent = '已選取，請按複製'; };
+  try { navigator.clipboard.writeText(t.value).then(done, pick); } catch { pick(); }
+};
+
 // ---------------- per-frame updates ----------------
 function updateCar(dt) {
   const k = S.keys, c = S.car;
   let thr = (k.KeyW || k.ArrowUp ? 1 : 0) - (k.KeyS || k.ArrowDown ? 1 : 0) + S.joy.y;
   let st = (k.KeyA || k.ArrowLeft ? 1 : 0) - (k.KeyD || k.ArrowRight ? 1 : 0) - S.joy.x;
   thr = THREE.MathUtils.clamp(thr, -1, 1); st = THREE.MathUtils.clamp(st, -1, 1);
+  if (S.race && S.race.phase !== 'run') { thr = st = 0; c.v = 0; }   // countdown / finished: wait at the line
   const boost = k.ShiftLeft || k.ShiftRight || S.boost;
   const max = boost ? 52 : 30;
   if (thr > 0) c.v += thr * (boost ? 20 : 12) * dt; else if (thr < 0) c.v += thr * (c.v > 0 ? 26 : 9) * dt;
@@ -1165,6 +1348,7 @@ function loop() {
       else if (S.mode === 'cutscene') updateCutscene(dt);
       else if (S.mode === 'intro') { const a = t * 0.05; camera.position.set(R.c[0] + Math.cos(a) * 2400, 900, R.c[1] + Math.sin(a) * 2400); camera.lookAt(R.c[0], 0, R.c[1]); }
       if (S.mode === 'drive' || S.mode === 'drone') checkMission();
+      if (S.race) updateRace(dt);
     }
     updateEnvironment(dt);
     updateTraffic(dt);
@@ -1204,5 +1388,6 @@ window.__api = {
   wheelColor(c) { taxi.userData.wheels.forEach(w => { w.material = w.material.clone(); w.material.color.setHex(c); }); },
   cutscene() { transformCutscene(); },                 // demo recording (tools/build/record_demo.mjs)
   tour(t0 = 0) { startTour(); S.tour.t = t0; },
+  race: () => S.race,
   step(n, dt, keys) { Object.assign(S.keys, keys || {}); for (let i = 0; i < n; i++) updateCar(dt); S.keys = {}; return { ...S.car }; },
 };

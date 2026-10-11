@@ -84,3 +84,17 @@ export const TOUR = [
   { t: 44, cap: '向北接北士科、向東接內科與南軟、向南接市中心' },
   { t: 52, cap: 'AI黃金世紀，從臺北開始' },
 ];
+
+// 2033 外送王: a fixed five-order course through the AI park, timed. Points are world metres (x east, z south)
+// and must match the course the leaderboard validates (tools/leaderboard/supabase.sql) — bump `id` if they move.
+export const RACE = {
+  id: 'c1', title: '2033 外送王', sub: '5 單限時外送挑戰',
+  start: [101, 691], radius: 30,
+  stops: [
+    { at: [1001, 551], icon: '🥛', item: '鮮奶', to: '國際永續生活聚落', note: '新住民的早餐' },
+    { at: [-129, 471], icon: '🍱', item: '雞腿便當', to: 'AI 產業聚落', note: '工程師加班中' },
+    { at: [91, -69], icon: '🧋', item: '珍珠奶茶', to: '110 公頃中央公園', note: '野餐要全糖去冰' },
+    { at: [61, -249], icon: '🍍', item: '鳳梨酥', to: 'XY 軸捷運 松機站', note: '國際旅客的伴手禮' },
+    { at: [231, -529], icon: '🍗', item: '鹹酥雞', to: '基隆河岸', note: '河濱夜跑完的宵夜' },
+  ],
+};

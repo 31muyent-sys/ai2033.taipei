@@ -4,6 +4,11 @@ name: leaderboard check
 # shape, and refuse bad runs. Uses only calls that are rejected before anything is written.
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - 3d/js/board.js
+      - tools/leaderboard/**
+      - .github/workflows/leaderboard-check.yml
 
 jobs:
   check:

@@ -741,6 +741,7 @@ function blocked(x, z) {
 addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT') return;
   if (!$('raceEnd').hidden) { initialsKey(e); return; }
+  if (!$('legUp').hidden) { legUpKey(e); return; }
   S.keys[e.code] = true;
   if (S.mode === 'intro') return;
   if (e.code === 'KeyG' && !S.race) startRace();
@@ -950,18 +951,25 @@ function updateTour(dt) {
 }
 
 // ---------------- 2033 外送王: timed five-order delivery race ----------------
+// Every order has its own board (任務榜) and the whole run has the total board (總榜). An order that makes its
+// board pauses the clock and offers to register now or keep going and register everything at the end.
 const SITE = 'https://ai2033.taipei/3d/';
 const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+const NST = RACE.stops.length;
 // a shared link can carry the sender's run: ?race&vs=ABC.83450
 const RACE_VS = (() => { const m = /[?&]vs=([A-Z]{3})\.(\d{5,7})\b/.exec(location.search); return m ? { i: m[1], ms: +m[2] } : null; })();
 const fmtTime = (ms) => `${Math.floor(ms / 60000)}:${((ms % 60000) / 1000).toFixed(2).padStart(5, '0')}`;
+const fmtSec = (ms) => `${(ms / 1000).toFixed(2)} 秒`;
+const legMs = (r, k) => r.splits[k - 1] - (k > 1 ? r.splits[k - 2] : 0);   // order k (1-based) on its own
+const boardName = (leg) => (leg === 0 ? '總榜' : `第 ${leg} 單任務榜`);
+const esc = (s) => String(s).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
 function raceLock() {
   if (!S.race || S.race.phase === 'done') return false;
   toast('比賽中不能用這個功能，先把餐送完吧 🛵', 1800); return true;
 }
 function startRace() {
   if (!S.ready) return;
-  ['card', 'help', 'finale', 'raceEnd'].forEach(id => $(id).hidden = true); S.paused = false;
+  ['card', 'help', 'finale', 'raceEnd', 'legUp'].forEach(id => $(id).hidden = true); S.paused = false; S.keys = {};
   if (S.mode === 'tour') endTour();
   $('intro').hidden = true; $('hud').hidden = false; if (isTouch) $('touch').hidden = false;
   S.mode = 'drive'; $('tbMode').innerHTML = '🚁 <b>空拍</b>'; $('caption').hidden = true;
@@ -972,17 +980,19 @@ function startRace() {
   S.cam.yaw = 0; S.cam.userYawT = 0; S.look = null;
   camera.position.set(x - Math.sin(c.h) * 40, 26, z - Math.cos(c.h) * 40);
   const prev = S.race ? S.race.prevMission : S.mission;
-  S.race = { phase: 'count', t: -3.4, stop: 0, splits: [], trace: [], next: 0, shown: null, vs: RACE_VS, prevMission: prev };
-  $('mTimer').hidden = false; $('mTimer').textContent = fmtTime(0); $('mTimer').classList.remove('done');
+  const r = S.race = { phase: 'count', t: -3.4, stop: 0, splits: [], trace: [], next: 0, shown: null, vs: RACE_VS, prevMission: prev, pend: [], boards: null };
+  board.boards(RACE.id, NST).then(b => { r.boards = b; });
+  $('mTimer').hidden = false; $('mTime').textContent = fmtTime(0); $('mLeg').textContent = ''; $('mTimer').classList.remove('done');
+  $('mPeek').hidden = true;
   $('tbRace').innerHTML = '✕ <b>退出比賽</b>';
   showRaceStop();
 }
 function showRaceStop() {
   const r = S.race, st = RACE.stops[r.stop];
-  $('mTitle').textContent = `🏁 ${RACE.title}・第 ${Math.min(r.stop + 1, RACE.stops.length)}/${RACE.stops.length} 單`;
+  $('mTitle').textContent = `🏁 ${RACE.title}・第 ${Math.min(r.stop + 1, NST)}/${NST} 單`;
   $('mHint').textContent = st ? `${st.icon} ${st.item} → ${st.to}（${st.note}）` : '全部送達！';
   const prog = $('mProg'); prog.innerHTML = '';
-  RACE.stops.forEach((_, k) => { const d = document.createElement('i'); if (k < r.stop) d.className = 'on'; prog.appendChild(d); });
+  RACE.stops.forEach((_, k) => { const d = document.createElement('i'); if (k < r.stop) d.className = r.pend.includes(k + 1) ? 'on rec' : 'on'; prog.appendChild(d); });
   updateCheckpoint();
 }
 function updateRace(dt) {
@@ -990,7 +1000,7 @@ function updateRace(dt) {
   if (r.phase === 'count') {
     r.t += dt;
     const n = Math.ceil(-r.t);
-    if (n !== r.shown && n >= 1 && n <= 3) { r.shown = n; banner(String(n), n === 3 ? (r.vs ? `挑戰 ${r.vs.i} 的 ${fmtTime(r.vs.ms)}` : `${RACE.stops.length} 單外送，越快越好`) : '', 950); }
+    if (n !== r.shown && n >= 1 && n <= 3) { r.shown = n; banner(String(n), n === 3 ? (r.vs ? `挑戰 ${r.vs.i} 的 ${fmtTime(r.vs.ms)}` : `${NST} 單外送，每單都有任務榜`) : '', 950); }
     if (r.t >= 0) { r.phase = 'run'; r.t = 0; banner('GO!', '🛵 出發送餐！', 1100); }
     return;
   }
@@ -998,51 +1008,137 @@ function updateRace(dt) {
   r.t += dt;
   const ms = Math.round(r.t * 1000), c = S.car;
   if (ms >= r.next) { r.trace.push([ms, Math.round(c.x), Math.round(c.z)]); r.next += 500; }   // route sample every 0.5 s for the leaderboard check
-  $('mTimer').textContent = fmtTime(ms);
+  $('mTime').textContent = fmtTime(ms);
+  $('mLeg').textContent = `本單 ${((ms - (r.splits[r.stop - 1] || 0)) / 1000).toFixed(1)}`;
+  if (r.peekT && ms > r.peekT) { $('mPeek').hidden = true; r.peekT = 0; }
   const st = RACE.stops[r.stop];
-  if (Math.hypot(c.x - st.at[0], c.z - st.at[1]) <= RACE.radius) {
-    r.splits.push(ms); r.trace.push([ms, Math.round(c.x), Math.round(c.z)]);
-    r.stop++;
-    const nx = RACE.stops[r.stop];
-    if (!nx) { finishRace(ms); return; }
-    toast(`${st.icon} ${st.item}送達！下一單：${nx.icon} ${nx.item} → ${nx.to}`, 2400);
-    showRaceStop();
-  } else if (ms > 15 * 60 * 1000) { leaveRace(); toast('超過 15 分鐘，外送賽結束', 2600); }
+  if (Math.hypot(c.x - st.at[0], c.z - st.at[1]) <= RACE.radius) delivered(ms);
+  else if (ms > 15 * 60 * 1000) { leaveRace(true); toast('超過 15 分鐘，外送賽結束', 2600); }
 }
-function finishRace(ms) {
-  const r = S.race; r.phase = 'done'; r.ms = ms; r.submitted = false;
-  $('mTimer').textContent = fmtTime(ms); $('mTimer').classList.add('done');
+function delivered(ms) {
+  const r = S.race, c = S.car;
+  r.splits.push(ms); r.trace.push([ms, Math.round(c.x), Math.round(c.z)]);
+  $('mPeek').hidden = true; r.peekT = 0;
+  r.stop++;
+  const k = r.stop, lms = legMs(r, k), rows = r.boards ? r.boards.legs[k - 1] : [];
+  const place = board.placeOf(rows, lms), makes = place <= board.TOP;
+  if (makes) r.pend.push(k);
   showRaceStop();
-  banner('全部送達！', fmtTime(ms), 2200);
-  setTimeout(() => { if (S.race === r) openRaceEnd(); }, 1700);
+  if (k >= NST) { finishRace(ms); return; }
+  if (makes) openLegUp(k, lms, rows, place);
+  else {   // not a record: a quick look at that order's board, and keep driving
+    const st = RACE.stops[k - 1], nx = RACE.stops[k];
+    $('mPeek').innerHTML = `<b>${st.icon} 第 ${k} 單 ${fmtSec(lms)}</b>・任務榜第 ${board.TOP} 名 ${fmtSec(rows[board.TOP - 1].ms)}<ol>${rows.slice(0, 3).map(x => `<li>${x.i} ${fmtSec(x.ms)}</li>`).join('')}</ol>`;
+    $('mPeek').hidden = false; r.peekT = ms + 4500;
+    toast(`${st.icon} 送達！下一單：${nx.icon} ${nx.item} → ${nx.to}`, 2200);
+  }
 }
-function leaveRace() {
+// an order made its board: clock stops, register now or keep going
+function openLegUp(k, lms, rows, place) {
+  const r = S.race, st = RACE.stops[k - 1], nx = RACE.stops[k];
+  S.paused = true; S.keys = {};
+  $('luKicker').textContent = `第 ${k} 單・${st.icon} ${st.item} → ${st.to}`;
+  $('luTime').textContent = fmtSec(lms);
+  $('luRank').textContent = `🏆 ${r.boards && r.boards.shared ? '全台' : '這台裝置'}任務榜第 ${place} 名${place === 1 ? '・新紀錄！' : ''}`;
+  $('luBoard').innerHTML = boardRows(rows, { i: '你', ms: lms, me: true }, 5);
+  $('luGo').textContent = `▶ 繼續送第 ${k + 1} 單（${nx.icon} ${nx.item}）`;
+  $('luNote').textContent = '計時已暫停。繼續的話，全部送完再把這張任務榜和總榜一起登錄。';
+  $('legUp').hidden = false;
+}
+function continueRace() {
+  $('legUp').hidden = true; S.paused = false; S.keys = {};
+  const nx = RACE.stops[S.race.stop]; toast(`下一單：${nx.icon} ${nx.item} → ${nx.to}`, 2000);
+}
+function registerNow() { $('legUp').hidden = true; S.paused = false; endRun(false); }
+function finishRace(ms) {
+  S.race.ms = ms;
+  $('mTime').textContent = fmtTime(ms);
+  banner('全部送達！', fmtTime(ms), 2200);
+  endRun(true);
+}
+// the run stops here (all orders, or registering early / leaving with records): show the result screen
+function endRun(full) {
+  const r = S.race; r.phase = 'done'; r.full = full; r.submitted = false;
+  $('mTimer').classList.add('done'); $('mLeg').textContent = ''; $('mPeek').hidden = true;
+  updateCheckpoint();
+  setTimeout(() => { if (S.race === r) openRaceEnd(); }, full ? 1700 : 200);
+}
+function leaveRace(force) {
   const r = S.race; if (!r) return;
-  S.race = null;
-  $('raceEnd').hidden = true; $('mTimer').hidden = true; $('tbRace').innerHTML = '🏁 <b>外送賽</b>';
+  // leaving mid-run with orders that made their boards: offer to register them first
+  if (!force && r.phase === 'run' && r.pend.length) { $('legUp').hidden = true; S.paused = false; endRun(false); return; }
+  S.race = null; S.paused = false;
+  ['raceEnd', 'legUp'].forEach(id => $(id).hidden = true);
+  $('mTimer').hidden = true; $('mPeek').hidden = true; $('tbRace').innerHTML = '🏁 <b>外送賽</b>';
   S.cpIndex = Math.min(S.cpIndex, CHECKPOINTS.length - 1);
   setMission(r.prevMission === 0 ? 1 : r.prevMission);   // the race left us in 2033, so the airport mission is done
 }
 
-// result screen: time, legs, arcade-style initials, leaderboard, share
+// result screen: time, orders, arcade-style initials, boards, share
 const INIT = { s: 'AAA', k: 0 };
+function boardRows(rows, me, n = board.TOP) {
+  const list = rows.slice();
+  if (me) { list.push(me); list.sort((a, b) => a.ms - b.ms || (a === me ? 1 : b === me ? -1 : 0)); }   // ties go after earlier runs
+  const row = (x, rank) => `<li class="${x.me ? 'me' : ''}"><span class="rk">${rank}</span><b>${esc(x.i)}</b><span class="t">${x.ms >= 60000 ? fmtTime(x.ms) : fmtSec(x.ms)}</span></li>`;
+  let html = list.slice(0, n).map((x, j) => row(x, j + 1)).join('');
+  const at = me ? list.indexOf(me) : -1;
+  if (at >= n) html += row(me, me.rank || at + 1);
+  return html || '<li class="empty">還沒有人上榜，搶第一！</li>';
+}
+function regLegs(r) { return (r.full ? [0] : []).concat(r.pend); }
 function openRaceEnd() {
-  const r = S.race, ms = r.ms;
-  const pb = board.personalBest(RACE.id), isPb = !pb || ms < pb;
-  if (isPb) board.savePersonalBest(RACE.id, ms);
-  $('reTime').textContent = fmtTime(ms);
-  const notes = [isPb ? (pb ? `🎉 個人新紀錄！比之前快 ${((pb - ms) / 1000).toFixed(2)} 秒` : '🎉 第一次完賽！') : `個人最佳 ${fmtTime(pb)}`];
-  if (r.vs) notes.push(ms < r.vs.ms ? `🏆 你贏了 ${r.vs.i}（${fmtTime(r.vs.ms)}）！` : `差 ${r.vs.i} ${((ms - r.vs.ms) / 1000).toFixed(2)} 秒，再一次？`);
-  $('reNote').textContent = notes.join('　');
-  $('reSplits').innerHTML = RACE.stops.map((st, k) => {
-    const leg = r.splits[k] - (k ? r.splits[k - 1] : 0);
-    return `<li><span>${st.icon} ${st.item} → ${st.to}</span><b>${(leg / 1000).toFixed(2)} 秒</b></li>`;
+  const r = S.race, done = r.splits.length;
+  if (r.full) {
+    const pb = board.personalBest(RACE.id), isPb = !pb || r.ms < pb;
+    if (isPb) board.savePersonalBest(RACE.id, r.ms);
+    const notes = [isPb ? (pb ? `🎉 個人新紀錄！比之前快 ${((pb - r.ms) / 1000).toFixed(2)} 秒` : '🎉 第一次完賽！') : `個人最佳 ${fmtTime(pb)}`];
+    if (r.vs) notes.push(r.ms < r.vs.ms ? `🏆 你贏了 ${r.vs.i}（${fmtTime(r.vs.ms)}）！` : `差 ${r.vs.i} ${((r.ms - r.vs.ms) / 1000).toFixed(2)} 秒，再一次？`);
+    $('reKicker').textContent = '🏁 2033 外送王・全部送達';
+    $('reTime').textContent = fmtTime(r.ms);
+    $('reNote').textContent = notes.join('　');
+  } else {
+    $('reKicker').textContent = `🏁 2033 外送王・送了 ${done} 單`;
+    $('reTime').textContent = fmtTime(r.splits[done - 1]);
+    $('reNote').textContent = '中途登錄只會上任務榜；全部送完才會上總榜。';
+  }
+  $('reSplits').innerHTML = r.splits.map((_, j) => {
+    const st = RACE.stops[j], rec = r.pend.includes(j + 1);
+    return `<li class="${rec ? 'rec' : ''}"><span>${st.icon} ${st.item} → ${st.to}</span><b>${rec ? '🏆 ' : ''}${fmtSec(legMs(r, j + 1))}</b></li>`;
   }).join('');
+  const legs = regLegs(r);
+  $('reWhat').textContent = legs.length ? `將登錄：${legs.map(boardName).join('、')}` : '';
   INIT.s = board.lastInitials(); INIT.k = 0; drawInitials();
-  $('reEntry').hidden = false; $('reSubmit').disabled = false; $('reMsg').textContent = '';
-  $('reShareRow').hidden = true;
+  $('reEntry').hidden = !legs.length; $('reSubmit').disabled = false; $('reMsg').textContent = legs.length ? '' : '這次沒有破任何一張榜，再跑一次吧！';
+  $('reRank').textContent = ''; $('reShareRow').hidden = true;
+  r.tab = r.full ? 0 : (r.pend[0] || 0); r.mine = {};
   $('raceEnd').hidden = false;
-  loadBoard(null);
+  drawTabs(); refreshBoards();
+}
+function drawTabs() {
+  const r = S.race;
+  $('reTabs').innerHTML = [0, ...RACE.stops.map((_, k) => k + 1)].map(leg =>
+    `<button data-leg="${leg}" class="${leg === r.tab ? 'on' : ''}${regLegs(r).includes(leg) ? ' rec' : ''}">${leg === 0 ? '總榜' : `${RACE.stops[leg - 1].icon} ${leg}`}</button>`).join('');
+  $('reTabs').querySelectorAll('button').forEach(b => b.onclick = () => { r.tab = +b.dataset.leg; drawTabs(); drawBoard(); });
+}
+function drawBoard() {
+  const r = S.race, b = r.boards; if (!b) { $('reBoard').innerHTML = '<li class="empty">載入排行榜中…</li>'; return; }
+  const leg = r.tab, rows = leg === 0 ? b.total : b.legs[leg - 1], st = RACE.stops[leg - 1];
+  $('reBoardTitle').textContent = `🏆 ${b.shared ? '全台' : '這台裝置'}・${leg === 0 ? '總榜（5 單全送完）' : `第 ${leg} 單 ${st.icon} ${st.item}`}`;
+  const mine = r.mine[leg];
+  if (mine != null) {   // registered: highlight the entry on the refreshed board (or add it below with its rank)
+    let hit = false;
+    const list = rows.map(x => (!hit && x.i === r.who && x.ms === mine ? (hit = true, { ...x, me: true }) : x));
+    $('reBoard').innerHTML = boardRows(list, hit ? null : { i: r.who, ms: mine, me: true, rank: r.ranks && r.ranks[leg] && r.ranks[leg].rank });
+    return;
+  }
+  // not registered yet: show where this run would land
+  const me = !r.submitted && regLegs(r).includes(leg) ? { i: '你', ms: leg === 0 ? r.ms : legMs(r, leg), me: true } : null;
+  $('reBoard').innerHTML = boardRows(rows, me);
+}
+async function refreshBoards() {
+  const r = S.race; drawBoard();
+  const b = await board.boards(RACE.id, NST);
+  if (S.race === r) { r.boards = b; drawBoard(); }
 }
 function drawInitials() {
   $('reInit').querySelectorAll('.slot').forEach((el, k) => { el.querySelector('b').textContent = INIT.s[k]; el.classList.toggle('on', k === INIT.k); });
@@ -1051,7 +1147,7 @@ function bumpLetter(k, d) {
   const a = INIT.s.split(''); a[k] = LETTERS[(LETTERS.indexOf(a[k]) + d + 26) % 26]; INIT.s = a.join(''); INIT.k = k; drawInitials();
 }
 function initialsKey(e) {
-  if (S.race && S.race.submitted) { if (e.code === 'Enter') startRace(); return; }
+  if (!S.race || S.race.submitted || $('reEntry').hidden) { if (e.code === 'Enter') startRace(); return; }
   const ch = e.key && e.key.length === 1 ? e.key.toUpperCase() : '';
   if (ch && LETTERS.includes(ch)) { const a = INIT.s.split(''); a[INIT.k] = ch; INIT.s = a.join(''); INIT.k = Math.min(2, INIT.k + 1); drawInitials(); }
   else if (e.code === 'ArrowUp') bumpLetter(INIT.k, -1);
@@ -1061,6 +1157,9 @@ function initialsKey(e) {
   else if (e.code === 'Enter') submitRun();
   else return;
   e.preventDefault();
+}
+function legUpKey(e) {
+  if (e.code === 'Enter' || e.code === 'Space') { e.preventDefault(); continueRace(); }
 }
 // ▲▼ buttons repeat while held, like an arcade cabinet
 $('reInit').querySelectorAll('.slot').forEach((el, k) => {
@@ -1072,34 +1171,40 @@ $('reInit').querySelectorAll('.slot').forEach((el, k) => {
     ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => b.addEventListener(ev, stop));
   }
 });
-const BOARD_ERR = { rate_limited: '登錄太頻繁了，等幾秒再按一次', implausible: '這筆紀錄沒有通過排行榜檢查，所以沒有上榜', blocked_initials: '這組字母不能用，換一組吧', bad_initials: '請輸入 3 個英文字母', bad_course: '路線版本不同，請重新整理頁面' };
+const BOARD_ERR = { rate_limited: '登錄太頻繁了，等 15 秒再按一次', implausible: '這筆紀錄沒有通過排行榜檢查，所以沒有上榜', blocked_initials: '這組字母不能用，換一組吧', bad_initials: '請輸入 3 個英文字母', bad_course: '路線版本不同，請重新整理頁面' };
 async function submitRun() {
   const r = S.race; if (!r || r.submitted || $('reSubmit').disabled) return;
+  const legs = regLegs(r); if (!legs.length) return;
   if (board.refused(INIT.s)) { $('reMsg').textContent = BOARD_ERR.blocked_initials; return; }
   $('reSubmit').disabled = true; $('reMsg').textContent = '登錄中…';
   board.saveInitials(INIT.s);
-  const res = await board.submit(RACE.id, { initials: INIT.s, ms: r.ms, splits: r.splits, trace: r.trace });
+  const last = r.splits[r.splits.length - 1];
+  const res = await board.submit(RACE.id, NST, { initials: INIT.s, legs, splits: r.splits, trace: r.trace.filter(t => t[0] <= last) });
   if (res.reason && ['rate_limited', 'blocked_initials', 'bad_initials'].includes(res.reason)) { $('reMsg').textContent = BOARD_ERR[res.reason]; $('reSubmit').disabled = false; return; }
-  r.submitted = true; r.rank = res.shared ? res.rank : null; r.who = INIT.s;
+  r.submitted = true; r.who = INIT.s; r.shared = res.shared; r.ranks = res.ranks;
+  r.mine = {}; for (const leg of legs) r.mine[leg] = leg === 0 ? r.ms : legMs(r, leg);
   $('reEntry').hidden = true;
   $('reMsg').textContent = res.reason ? (BOARD_ERR[res.reason] || '排行榜暫時連不上，成績先存在這台裝置') : '';
-  $('reRank').textContent = res.shared ? `${INIT.s}・全台第 ${res.rank} 名（共 ${res.total} 筆）` : `${INIT.s}・這台裝置第 ${res.rank} 名`;
-  loadBoard({ i: INIT.s, ms: r.ms });
-}
-async function loadBoard(me) {
-  const el = $('reBoard');
-  if (!me) $('reRank').textContent = '';
-  const { shared, rows } = await board.top(RACE.id, 10);
-  $('reBoardTitle').textContent = shared ? '🏆 全台排行榜' : '🏆 排行榜（這台裝置）';
-  el.innerHTML = rows.length
-    ? rows.map((x, k) => `<li class="${me && x.i === me.i && x.ms === me.ms ? 'me' : ''}"><span class="rk">${k + 1}</span><b>${x.i}</b><span class="t">${fmtTime(x.ms)}</span></li>`).join('')
-    : '<li class="empty">還沒有人上榜，搶第一！</li>';
+  const where = res.shared ? '全台' : '這台裝置';
+  const got = legs.filter(l => res.ranks[l]);
+  const tot = got.includes(0) ? `總榜第 ${res.ranks[0].rank} 名` : '';
+  const ords = got.filter(l => l > 0).map(l => `${RACE.stops[l - 1].icon} 第 ${res.ranks[l].rank} 名`).join('、');
+  $('reRank').textContent = `${INIT.s} 登上${where}：${[tot, ords && `任務榜 ${ords}`].filter(Boolean).join('｜')}`;
+  refreshBoards();
 }
 function raceShare() {
-  const r = S.race; if (!r || !r.ms) return;
-  const who = r.who || INIT.s;
-  const url = `${SITE}?race&vs=${who}.${r.ms}`;
-  const text = `我在「臺北 2033 外送王」送完 5 單只花 ${fmtTime(r.ms)}${r.rank ? `，全台排行榜第 ${r.rank} 名` : ''} 🛵 你能比我快嗎？`;
+  const r = S.race; if (!r || !r.splits.length) return;
+  const who = r.who || INIT.s, where = r.shared ? '全台' : '';
+  let url = `${SITE}?race`, text;
+  if (r.full) {
+    url += `&vs=${who}.${r.ms}`;
+    const rk = r.ranks && r.ranks[0];
+    text = `我在「臺北 2033 外送王」送完 5 單只花 ${fmtTime(r.ms)}${rk ? `，${where}總榜第 ${rk.rank} 名` : ''} 🛵 你能比我快嗎？`;
+  } else {
+    const best = r.pend.map(k => ({ k, rk: r.ranks && r.ranks[k] })).sort((a, b) => (a.rk ? a.rk.rank : 99) - (b.rk ? b.rk.rank : 99))[0];
+    const k = best ? best.k : r.splits.length, st = RACE.stops[k - 1];
+    text = `我在「臺北 2033 外送王」第 ${k} 單送${st.item}只花 ${fmtSec(legMs(r, k))}${best && best.rk ? `，${where}任務榜第 ${best.rk.rank} 名` : ''} 🛵 你送得比我快嗎？`;
+  }
   const enc = encodeURIComponent;
   $('shFb').href = `https://www.facebook.com/sharer/sharer.php?u=${enc(url)}`;
   $('shTh').href = `https://www.threads.net/intent/post?text=${enc(text + ' ' + url)}`;
@@ -1112,7 +1217,9 @@ function raceShare() {
 $('reSubmit').onclick = () => submitRun();
 $('reAgain').onclick = () => startRace();
 $('reShare').onclick = () => raceShare();
-$('reFree').onclick = () => leaveRace();
+$('reFree').onclick = () => leaveRace(true);
+$('luGo').onclick = () => continueRace();
+$('luReg').onclick = () => registerNow();
 $('shCopy').onclick = () => {
   const t = $('shText');
   const done = () => { $('shCopy').textContent = '已複製 ✓'; setTimeout(() => $('shCopy').textContent = '複製', 1800); };

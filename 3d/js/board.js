@@ -1,55 +1,75 @@
-// Leaderboard for 2033 外送王. With a Supabase project filled in below, every run goes to one shared board
-// (checked server-side by tools/leaderboard/supabase.sql); without one, scores stay on this device.
+// Leaderboards for 2033 外送王: one for the whole run and one for each order. With the Supabase project
+// below, everyone shares the same boards (runs are checked server-side by tools/leaderboard/supabase.sql);
+// if it can't be reached, scores stay on this device.
 export const BOARD = {
-  url: '',   // e.g. https://abcdefgh.supabase.co
-  key: '',   // the project's anon (public) key — safe to ship; the database only accepts runs through submit_score()
+  url: 'https://ogvqrfdgflxhfdqwtrxq.supabase.co',
+  key: 'sb_publishable_Fe_h6sRUasUjh3jCuXkgKA_qtCRfwpM',   // publishable (public) key: the database only accepts runs through submit_score()
 };
+export const TOP = 10;   // places shown on each board, and what counts as "making the board"
 
-// three-letter names the board refuses (also enforced in the database)
+// three-letter names the boards refuse (also enforced in the database)
 const BLOCK = new Set(('ASS CUM COK CNT DIC DIK FAG FCK FUC FUK FUQ FKU JIZ KKK KYS NGR NIG SEX SHT TIT VAG XXX ' +
   'CNM NMB TMD MLB GAN').split(' '));
 export const refused = (s) => BLOCK.has(s);
 export const isShared = () => !!(BOARD.url && BOARD.key);
 
 const lsKey = (course) => `ai2033.race.${course}`;
-function readLocal(course) { try { return JSON.parse(localStorage.getItem(lsKey(course)) || '[]'); } catch { return []; } }
-function writeLocal(course, list) { try { localStorage.setItem(lsKey(course), JSON.stringify(list.slice(0, 50))); } catch { /* storage off */ } }
-const clean = (rows) => rows.filter(r => /^[A-Z]{3}$/.test(r.i) && Number.isFinite(r.ms));
+const clean = (rows) => (Array.isArray(rows) ? rows : []).filter(r => r && /^[A-Z]{3}$/.test(r.i) && Number.isFinite(r.ms));
+// this device's boards: { total: [{ i, ms }], legs: [[{ i, ms }] × stops] }
+function readLocal(course, nLegs) {
+  let b = null;
+  try { b = JSON.parse(localStorage.getItem(lsKey(course) + '.v2') || 'null'); } catch { /* storage off */ }
+  if (!b) {   // first version kept whole runs only
+    let old = []; try { old = JSON.parse(localStorage.getItem(lsKey(course)) || '[]'); } catch { /* storage off */ }
+    b = { total: clean(old), legs: [] };
+  }
+  b.total = clean(b.total); b.legs = Array.from({ length: nLegs }, (_, k) => clean((b.legs || [])[k]));
+  return b;
+}
+function writeLocal(course, b) { try { localStorage.setItem(lsKey(course) + '.v2', JSON.stringify(b)); } catch { /* storage off */ } }
+const insertRow = (rows, row) => { rows.push(row); rows.sort((a, b) => a.ms - b.ms); rows.splice(50); return rows.indexOf(row) + 1; };
 
 async function rpc(fn, body) {
-  const res = await fetch(`${BOARD.url.replace(/\/$/, '')}/rest/v1/rpc/${fn}`, {
-    method: 'POST',
-    headers: { apikey: BOARD.key, Authorization: `Bearer ${BOARD.key}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
+  const headers = { apikey: BOARD.key, 'Content-Type': 'application/json' };
+  if (BOARD.key.startsWith('eyJ')) headers.Authorization = `Bearer ${BOARD.key}`;   // legacy anon JWT keys
+  const res = await fetch(`${BOARD.url.replace(/\/$/, '')}/rest/v1/rpc/${fn}`, { method: 'POST', headers, body: JSON.stringify(body) });
   const text = await res.text();
   let data = null; try { data = JSON.parse(text); } catch { /* not json */ }
   if (!res.ok) { const e = new Error((data && data.message) || `HTTP ${res.status}`); e.reason = data && data.message; throw e; }
   return data;
 }
 
-// best times, fastest first: { shared, rows: [{ i, ms, at }] }
-export async function top(course, n = 10) {
+// place a time would take on a board (1 = fastest), and whether that is within the top TOP
+export const placeOf = (rows, ms) => rows.filter(r => r.ms <= ms).length + 1;
+export const makesBoard = (rows, ms) => placeOf(rows, ms) <= TOP;
+
+// all boards of a course, fastest first: { shared, total, legs }
+export async function boards(course, nLegs) {
   if (isShared()) {
     try {
-      const rows = await rpc('race_top', { p_course: course, p_limit: n });
-      return { shared: true, rows: clean(rows.map(r => ({ i: r.initials, ms: r.ms, at: r.created_at }))) };
+      const b = await rpc('race_boards', { p_course: course, p_limit: TOP });
+      return { shared: true, total: clean(b.total), legs: Array.from({ length: nLegs }, (_, k) => clean((b.legs || [])[k])) };
     } catch { /* fall back to this device */ }
   }
-  return { shared: false, rows: clean(readLocal(course)).slice(0, n) };
+  const b = readLocal(course, nLegs);
+  return { shared: false, total: b.total.slice(0, TOP), legs: b.legs.map(r => r.slice(0, TOP)) };
 }
 
-// run: { initials, ms, splits: [ms at each delivery], trace: [[ms, x, z], …] } -> { shared, rank, total, reason? }
-export async function submit(course, run) {
-  const list = readLocal(course);
-  list.push({ i: run.initials, ms: run.ms, at: new Date().toISOString() });
-  list.sort((a, b) => a.ms - b.ms);
-  writeLocal(course, list);
-  const local = { shared: false, rank: list.findIndex(r => r.ms === run.ms && r.i === run.initials) + 1, total: list.length };
+// run: { initials, legs: [0 = whole run, k = order k], splits: [ms at each delivery so far], trace: [[ms, x, z], …] }
+// -> { shared, ranks: { [leg]: { ms, rank, total } }, reason? }
+export async function submit(course, nLegs, run) {
+  const b = readLocal(course, nLegs), ranks = {};
+  for (const leg of run.legs) {
+    const ms = leg === 0 ? run.splits[run.splits.length - 1] : run.splits[leg - 1] - (leg > 1 ? run.splits[leg - 2] : 0);
+    const rows = leg === 0 ? b.total : b.legs[leg - 1];
+    ranks[leg] = { ms, rank: insertRow(rows, { i: run.initials, ms }), total: rows.length };
+  }
+  writeLocal(course, b);
+  const local = { shared: false, ranks };
   if (!isShared()) return local;
   try {
-    const r = await rpc('submit_score', { p_course: course, p_initials: run.initials, p_ms: run.ms, p_splits: run.splits, p_trace: run.trace });
-    return { shared: true, rank: r.rank, total: r.total };
+    const r = await rpc('submit_score', { p_course: course, p_initials: run.initials, p_legs: run.legs, p_splits: run.splits, p_trace: run.trace });
+    return { shared: true, ranks: r };
   } catch (e) {
     return { ...local, reason: e.reason || 'offline' };
   }

@@ -49,7 +49,7 @@
 
 <!-- HUD -->
 <div id="hud" hidden>
-  <div id="mission" class="panel"><div class="m-title" id="mTitle"></div><div class="m-hint" id="mHint"></div><div class="m-prog" id="mProg"></div><div class="m-timer" id="mTimer" hidden>0:00.00</div></div>
+  <div id="mission" class="panel"><div class="m-title" id="mTitle"></div><div class="m-hint" id="mHint"></div><div class="m-prog" id="mProg"></div><div class="m-timer" id="mTimer" hidden><span id="mTime">0:00.00</span><small id="mLeg"></small></div><div class="m-peek" id="mPeek" hidden></div></div>
   <div id="stats" class="panel">
     <div class="year"><span id="yearNum">2026</span></div>
     <div class="money" id="money">NT$ 0</div>
@@ -106,7 +106,7 @@
         <tr><th>空拍</th><td><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 移動；<kbd>E</kbd>/<kbd>Q</kbd> 上升/下降；拖曳滑鼠轉視角</td></tr>
         <tr><th>視角</th><td>拖曳滑鼠旋轉、滾輪縮放</td></tr>
         <tr><th>快捷鍵</th><td><kbd>Y</kbd> 年份 <kbd>F</kbd> 開車/空拍 <kbd>N</kbd> 日夜 <kbd>T</kbd> 導覽 <kbd>R</kbd> 回到道路 <kbd>G</kbd> 外送賽</td></tr>
-        <tr><th>外送賽</th><td>在 2033 年的園區裡依序送完 5 單，越快越好；完賽後輸入 3 個英文字母登上排行榜</td></tr>
+        <tr><th>外送賽</th><td>在 2033 年的園區裡依序送 5 單。每單都有任務榜：進前 10 名時計時暫停，可以馬上登錄，或繼續送、最後連同總榜一起登錄（輸入 3 個英文字母）</td></tr>
         <tr><th>手機</th><td>左下搖桿控制方向；右側按鈕上升／下降／加速</td></tr>
       </table>
       <p class="fine">地圖資料：© OpenStreetMap 貢獻者（ODbL）。照片：Wikimedia Commons（作者與授權見介紹網站）。</p>
@@ -134,16 +134,34 @@
   </div>
 </section>
 
+<!-- 2033 外送王: an order made its board -->
+<section id="legUp" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="luTime">
+  <div class="card leg-card">
+    <div class="card-body">
+      <p class="kicker" id="luKicker"></p>
+      <div class="race-time" id="luTime"></div>
+      <p class="race-note" id="luRank"></p>
+      <ol class="race-board" id="luBoard"></ol>
+      <div class="intro-actions">
+        <button class="btn primary" id="luGo">▶ 繼續送下一單</button>
+        <button class="btn" id="luReg">🏁 現在登錄並結束</button>
+      </div>
+      <p class="fine" id="luNote"></p>
+    </div>
+  </div>
+</section>
+
 <!-- 2033 外送王 result -->
 <section id="raceEnd" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="reTime">
   <div class="card race-card">
     <div class="card-body race-main">
-      <p class="kicker">🏁 2033 外送王・全部送達</p>
+      <p class="kicker" id="reKicker">🏁 2033 外送王・全部送達</p>
       <div class="race-time" id="reTime">0:00.00</div>
       <p class="race-note" id="reNote"></p>
       <ol class="race-splits" id="reSplits"></ol>
       <div class="race-entry" id="reEntry">
         <p class="race-label">輸入大名・3 個英文字母</p>
+        <p class="race-what" id="reWhat"></p>
         <div class="entry-row">
           <div class="initials" id="reInit"><div class="slot"><button class="up" aria-label="上一個字母">▲</button><b>A</b><button class="dn" aria-label="下一個字母">▼</button></div><div class="slot"><button class="up" aria-label="上一個字母">▲</button><b>A</b><button class="dn" aria-label="下一個字母">▼</button></div><div class="slot"><button class="up" aria-label="上一個字母">▲</button><b>A</b><button class="dn" aria-label="下一個字母">▼</button></div></div>
           <button class="btn primary" id="reSubmit">登上排行榜</button>
@@ -152,6 +170,7 @@
       <p class="race-msg" id="reMsg"></p>
     </div>
     <div class="card-body race-side">
+      <div class="race-tabs" id="reTabs" role="tablist"></div>
       <h3 class="race-bt" id="reBoardTitle">🏆 排行榜</h3>
       <p class="race-rank" id="reRank"></p>
       <ol class="race-board" id="reBoard"></ol>

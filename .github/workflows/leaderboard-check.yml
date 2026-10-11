@@ -1,0 +1,33 @@
+name: leaderboard check
+
+# Checks the public 2033 外送王 boards on Supabase from outside: the functions exist, answer with the expected
+# shape, and refuse bad runs. Uses only calls that are rejected before anything is written.
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Call race_boards and submit_score
+        run: |
+          set -u
+          URL=$(sed -n "s/^ *url: '\(https:[^']*\)'.*/\1/p" 3d/js/board.js)
+          KEY=$(sed -n "s/^ *key: '\([^']*\)'.*/\1/p" 3d/js/board.js)
+          echo "project: $URL"
+          call() { curl -sS -o /tmp/out.json -w '%{http_code}' -X POST -H "apikey: $KEY" -H 'Content-Type: application/json' -d "$2" "$URL/rest/v1/rpc/$1"; }
+          fail=0
+          code=$(call race_boards '{"p_course":"c1","p_limit":10}'); echo "race_boards -> HTTP $code"; cat /tmp/out.json; echo
+          if [ "$code" != 200 ] || ! jq -e '(.total | type == "array") and (.legs | length == 5)' /tmp/out.json >/dev/null; then
+            echo "::error::race_boards is missing or answers the wrong shape — run tools/leaderboard/supabase.sql in the SQL editor"; fail=1
+          else
+            jq -r '"total board: \(.total | length) entries; order boards: \([.legs[] | length] | join(", "))"' /tmp/out.json
+          fi
+          code=$(call submit_score '{"p_course":"c1","p_initials":"ab","p_legs":[1],"p_splits":[20000],"p_trace":[]}'); echo "bad initials -> HTTP $code $(cat /tmp/out.json)"
+          jq -e '.message == "bad_initials"' /tmp/out.json >/dev/null || { echo "::error::submit_score did not refuse bad initials"; fail=1; }
+          code=$(call submit_score '{"p_course":"c1","p_initials":"QQQ","p_legs":[1],"p_splits":[20000],"p_trace":[[0,101,691],[20000,1001,551]]}'); echo "teleporting run -> HTTP $code $(cat /tmp/out.json)"
+          jq -e '.message == "implausible" or .message == "rate_limited"' /tmp/out.json >/dev/null || { echo "::error::submit_score did not refuse an impossible run"; fail=1; }
+          code=$(curl -sS -o /tmp/out.json -w '%{http_code}' -H "apikey: $KEY" "$URL/rest/v1/race_scores?select=*&limit=1"); echo "direct table read -> HTTP $code $(cat /tmp/out.json)"
+          if [ "$code" = 200 ] && [ "$(jq 'length' /tmp/out.json)" != 0 ]; then echo "::error::race_scores is readable directly"; fail=1; fi
+          exit $fail

@@ -823,7 +823,6 @@ function checkMission() {
   else if (S.mission === 1) {
     const cp = CHECKPOINTS[S.cpIndex];
     S.cpIndex++;
-    S.moneyTarget = Math.min(12e12, S.moneyTarget + 2e12);
     openCard(cp);
   }
 }
@@ -844,7 +843,7 @@ function closeCard() {
   }
 }
 function finale() {
-  S.finished = true; S.moneyTarget = 12e12;
+  S.finished = true;
   banner('任務完成！', 'AI黃金世紀，從臺北開始', 3000);
   setTimeout(() => {
     $('fTitle').textContent = FINALE.title; $('fSub').textContent = FINALE.sub; $('fBody').textContent = FINALE.body; $('fNote').textContent = FINALE.note;
@@ -858,7 +857,6 @@ function toggleYear() { setYear(S.yearTarget > 0.5 ? 0 : 1); }
 function setYear(y) {
   S.yearTarget = y; future.visible = true;
   banner(y ? '2033' : '2026', y ? '松山機場 → 臺北AI園區' : '回到現在：松山機場', 2200);
-  if (y) S.moneyTarget = Math.max(S.moneyTarget, 12e12 * (S.mission === 1 ? S.cpIndex / CHECKPOINTS.length : 1));
 }
 function cycleTime() { setTime((S.timeMode + 1) % 3); }
 function setTime(m) {
@@ -896,7 +894,7 @@ function updateCutscene(dt) {
   const rad = 2600 - Math.min(cs.t, 10) * 60, hgt = 1300 - Math.min(cs.t, 10) * 40;
   camera.position.set(R.c[0] + Math.cos(ang) * rad, hgt, R.c[1] + Math.sin(ang) * rad);
   camera.lookAt(R.c[0], 0, R.c[1]);
-  if (cs.t > 2.5 && S.yearTarget < 1) { S.yearTarget = 1; future.visible = true; banner('2033', '300 公頃 臺北AI園區', 3000); S.moneyTarget = 1e12; }
+  if (cs.t > 2.5 && S.yearTarget < 1) { S.yearTarget = 1; future.visible = true; banner('2033', '300 公頃 臺北AI園區', 3000); }
   if (cs.t > 13) {
     S.mode = 'drive'; S.cpIndex = 0; setMission(1);
     banner('任務完成！', '2033 已解鎖：開始探索', 2600);
@@ -921,7 +919,7 @@ function updateTour(dt) {
   const T = S.tour; T.t += dt;
   const t = T.t;
   let cap = TOUR[0].cap; for (const k of TOUR) if (t >= k.t) cap = k.cap; $('caption').textContent = cap;
-  if (t > 9 && S.yearTarget < 1) { S.yearTarget = 1; future.visible = true; S.moneyTarget = 12e12; }
+  if (t > 9 && S.yearTarget < 1) { S.yearTarget = 1; future.visible = true; }
   const zc = S.zoneCentres;
   const keys = [
     [0, [R.c[0] - 2600, 1500, R.c[1] + 1900], [R.c[0], 0, R.c[1]]],
@@ -1093,9 +1091,10 @@ function updateEnvironment(dt) {
   const texel = (2 * sc.right) / dir.shadow.mapSize.x * 4;
   fx = Math.round(fx / texel) * texel; fz = Math.round(fz / texel) * texel;
   dir.position.set(fx + sun.x * 1500, Math.max(200, sun.y * 1500), fz + sun.z * 1500); dir.target.position.set(fx, 0, fz);
-  // money counter
+  // money counter: the AI cluster's projected output follows the year, counting up to 12 兆 as 2033 arrives
+  S.moneyTarget = 12e12 * S.year;
   S.money += (S.moneyTarget - S.money) * Math.min(1, dt * 2);
-  $('money').textContent = S.money > 1e8 ? `產值 NT$ ${(S.money / 1e12).toFixed(2)} 兆` : '產值 NT$ —';
+  $('money').textContent = S.money > 5e10 ? `產值 NT$ ${(S.money / 1e12).toFixed(2)} 兆` : '產值 NT$ —';
 }
 
 function drawMinimap(D, fut) {

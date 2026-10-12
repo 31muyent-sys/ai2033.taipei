@@ -11,16 +11,18 @@
 
 成績從同一個 Supabase 專案的公開函式 `race_entry()`、`race_boards()` 讀（`tools/leaderboard/supabase.sql`）。預覽圖用 satori 排版、resvg 轉成 PNG，字型是只留卡片用得到的字的 Noto Sans TC（`lib/fonts/`，改了卡片文字要跑 `tools/subset.py`）。
 
-## 部署（一次，約 3 分鐘）
+## 部署
+
+目前已部署：Vercel 專案 `ai2033-share`，網址 `https://go.ai2033.taipei`（Gandi DNS 的 `CNAME go → cname.vercel-dns.com.`；`https://ai2033-share.vercel.app` 也一樣能用）。遊戲用的是 `3d/js/board.js` 的 `SHARE`。推到這個分支，Vercel 就會自動重新部署；`.github/workflows/leaderboard-check.yml` 會從外面檢查分享頁和卡片。
+
+要從頭再架一份（約 3 分鐘）：
 
 1. 到 <https://vercel.com> 用 GitHub 登入 → **Add New… → Project** → Import `dAAAb/ai2033.taipei`。
 2. **Root Directory** 按 Edit 選 `og`；Framework Preset 選 **Other**；其他保持預設 → **Deploy**。
 3. 部署好會拿到網址（例如 `https://ai2033-taipei.vercel.app`）。打開 `網址/r?n=ABC&ms=83450&k=0` 應該會跳進遊戲；把網址填進 `3d/js/board.js` 的 `SHARE`（或交給 Claude），遊戲的分享按鈕就會改用這些分享頁。
-目前已部署：Vercel 專案 `ai2033-share`，網址 `https://ai2033-share.vercel.app`（推到這個分支就會自動重新部署；`.github/workflows/leaderboard-check.yml` 會從外面檢查分享頁和卡片）。
+4. （選用）自己的網址：Vercel 專案 → Settings → Domains 加上網址（例如 `go.ai2033.taipei`），在 DNS 加一筆指向 `cname.vercel-dns.com.` 的 CNAME，再把 `SHARE` 改成這個網址。
 
-4. （選用）想要好看的短網址：Vercel 專案 → Settings → Domains 加 `go.ai2033.taipei`，再到 Gandi 的 DNS 加一筆 `CNAME go → cname.vercel-dns.com.`，然後把 `SHARE` 改成 `https://go.ai2033.taipei`。
-
-之後每次 push，Vercel 會自動重新部署。用 [Facebook 分享偵錯工具](https://developers.facebook.com/tools/debug/) 貼上分享連結，可以看到預覽圖，也能強制 Facebook 重新抓取。
+用 [Facebook 分享偵錯工具](https://developers.facebook.com/tools/debug/) 貼上分享連結，可以看到預覽圖，也能強制 Facebook 重新抓取。
 
 ## 本機測試
 

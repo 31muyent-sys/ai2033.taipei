@@ -6,7 +6,7 @@ export const BOARD = {
   key: 'sb_publishable_Fe_h6sRUasUjh3jCuXkgKA_qtCRfwpM',   // publishable (public) key: the database only accepts runs through submit_score()
 };
 // share links: per-run pages with their own preview image (og/, deployed on Vercel); empty = link straight to the game
-export const SHARE = 'https://ai2033-share.vercel.app';
+export const SHARE = 'https://go.ai2033.taipei';
 export const TOP = 10;   // places shown on each board, and what counts as "making the board"
 const REV = 2;           // oldest race_boards() 'rev' the game works with (rev 1 rejected today's top speed; rev 3 adds entry ids for share cards)
 

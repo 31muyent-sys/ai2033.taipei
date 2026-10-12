@@ -16,6 +16,8 @@
 1. 到 <https://vercel.com> 用 GitHub 登入 → **Add New… → Project** → Import `dAAAb/ai2033.taipei`。
 2. **Root Directory** 按 Edit 選 `og`；Framework Preset 選 **Other**；其他保持預設 → **Deploy**。
 3. 部署好會拿到網址（例如 `https://ai2033-taipei.vercel.app`）。打開 `網址/r?n=ABC&ms=83450&k=0` 應該會跳進遊戲；把網址填進 `3d/js/board.js` 的 `SHARE`（或交給 Claude），遊戲的分享按鈕就會改用這些分享頁。
+目前已部署：Vercel 專案 `ai2033-share`，網址 `https://ai2033-share.vercel.app`（推到這個分支就會自動重新部署；`.github/workflows/leaderboard-check.yml` 會從外面檢查分享頁和卡片）。
+
 4. （選用）想要好看的短網址：Vercel 專案 → Settings → Domains 加 `go.ai2033.taipei`，再到 Gandi 的 DNS 加一筆 `CNAME go → cname.vercel-dns.com.`，然後把 `SHARE` 改成 `https://go.ai2033.taipei`。
 
 之後每次 push，Vercel 會自動重新部署。用 [Facebook 分享偵錯工具](https://developers.facebook.com/tools/debug/) 貼上分享連結，可以看到預覽圖，也能強制 Facebook 重新抓取。

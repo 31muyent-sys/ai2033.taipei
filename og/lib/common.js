@@ -49,7 +49,7 @@ export async function lookup(q) {
     }
   } catch { /* fall through to the request's own numbers, or the plain site card */ }
   const n = q.get('n') || '', ms = +q.get('ms'), k = +(q.get('k') || 0);
-  if (/^[A-Z]{3}$/.test(n) && Number.isInteger(ms) && ms >= 1000 && ms <= 900000 && Number.isInteger(k) && k >= 0 && k <= ORDERS.length) {
+  if (/^[A-Z]{3}$/.test(n) && Number.isInteger(ms) && ms >= 200 && ms <= 900000 && Number.isInteger(k) && k >= 0 && k <= ORDERS.length) {
     return { kind: 'run', initials: n, ms, leg: k };
   }
   if (q.get('board')) return { kind: 'board', rows: [] };

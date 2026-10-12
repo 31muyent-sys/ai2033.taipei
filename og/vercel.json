@@ -7,6 +7,6 @@
     { "source": "/", "destination": "/api/share" }
   ],
   "functions": {
-    "api/*.js": { "includeFiles": "{lib,assets}/**" }
+    "api/*.js": { "includeFiles": "{lib/**,assets/**,node_modules/harfbuzzjs/hb.wasm}" }
   }
 }

@@ -55,7 +55,7 @@ jobs:
             if [ "$code" != 200 ] || [ -z "$img" ] || [[ "$title" != *"$2"* ]]; then echo "::error::$1 did not answer with its own preview tags"; fail=1; return; fi
             got=$(curl -sS -o /tmp/card.png -w '%{http_code} %{content_type} %{size_download}' "$img" || echo '000 none 0'); echo "   card -> $got"
             set -- $got
-            if [ "$1" != 200 ] || [ "$2" != image/png ] || [ "$3" -lt 20000 ]; then echo "::error::card $img is not a PNG"; fail=1; fi
+            if [ "$1" != 200 ] || [ "$2" != image/png ] || [ "$3" -lt 20000 ]; then echo "::error::card $img is not a PNG: $(head -c 300 /tmp/card.png)"; fail=1; fi
           }
           check '/b' '排行榜'
           check '/r?n=ABC&ms=850&k=4' 'ABC'

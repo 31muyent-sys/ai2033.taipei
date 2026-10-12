@@ -5,8 +5,10 @@ export const BOARD = {
   url: 'https://ogvqrfdgflxhfdqwtrxq.supabase.co',
   key: 'sb_publishable_Fe_h6sRUasUjh3jCuXkgKA_qtCRfwpM',   // publishable (public) key: the database only accepts runs through submit_score()
 };
+// share links: per-run pages with their own preview image (og/, deployed on Vercel); empty = link straight to the game
+export const SHARE = '';
 export const TOP = 10;   // places shown on each board, and what counts as "making the board"
-const REV = 2;           // must match race_boards() 'rev' in supabase.sql (an older database would reject today's top speed)
+const REV = 2;           // oldest race_boards() 'rev' the game works with (rev 1 rejected today's top speed; rev 3 adds entry ids for share cards)
 
 // three-letter names the boards refuse (also enforced in the database)
 const BLOCK = new Set(('ASS CUM COK CNT DIC DIK FAG FCK FUC FUK FUQ FKU JIZ KKK KYS NGR NIG SEX SHT TIT VAG XXX ' +
@@ -37,7 +39,7 @@ async function rpc(fn, body) {
   const res = await fetch(`${BOARD.url.replace(/\/$/, '')}/rest/v1/rpc/${fn}`, { method: 'POST', headers, body: JSON.stringify(body) });
   const text = await res.text();
   let data = null; try { data = JSON.parse(text); } catch { /* not json */ }
-  if (!res.ok) { const e = new Error((data && data.message) || `HTTP ${res.status}`); e.reason = data && data.message; throw e; }
+  if (!res.ok) { const e = new Error((data && data.message) || `HTTP ${res.status}`); e.reason = data && data.message; e.detail = data && data.details; throw e; }
   return data;
 }
 
@@ -46,21 +48,21 @@ export const placeOf = (rows, ms) => rows.filter(r => r.ms <= ms).length + 1;
 export const makesBoard = (rows, ms) => placeOf(rows, ms) <= TOP;
 
 // all boards of a course, fastest first: { shared, total, legs }
-export async function boards(course, nLegs) {
+export async function boards(course, nLegs, n = TOP) {
   if (isShared()) {
     try {
-      const b = await rpc('race_boards', { p_course: course, p_limit: TOP });
-      if (b.rev !== REV) throw new Error('database needs the current supabase.sql');
+      const b = await rpc('race_boards', { p_course: course, p_limit: n });
+      if (!(b.rev >= REV)) throw new Error('database needs the current supabase.sql');
       sharedOk = true;
       return { shared: true, total: clean(b.total), legs: Array.from({ length: nLegs }, (_, k) => clean((b.legs || [])[k])) };
     } catch { /* fall back to this device */ }
   }
   const b = readLocal(course, nLegs);
-  return { shared: false, total: b.total.slice(0, TOP), legs: b.legs.map(r => r.slice(0, TOP)) };
+  return { shared: false, total: b.total.slice(0, n), legs: b.legs.map(r => r.slice(0, n)) };
 }
 
 // run: { initials, legs: [0 = whole run, k = order k], splits: [ms at each delivery so far], trace: [[ms, x, z], …] }
-// -> { shared, ranks: { [leg]: { ms, rank, total } }, reason? }
+// -> { shared, ranks: { [leg]: { id?, ms, rank, total } }, reason?, detail? }
 export async function submit(course, nLegs, run) {
   const b = readLocal(course, nLegs), ranks = {};
   for (const leg of run.legs) {
@@ -75,7 +77,7 @@ export async function submit(course, nLegs, run) {
     const r = await rpc('submit_score', { p_course: course, p_initials: run.initials, p_legs: run.legs, p_splits: run.splits, p_trace: run.trace });
     return { shared: true, ranks: r };
   } catch (e) {
-    return { ...local, reason: e.reason || 'offline' };
+    return { ...local, reason: e.reason || 'offline', detail: e.detail };
   }
 }
 
@@ -83,3 +85,10 @@ export function personalBest(course) { try { return +localStorage.getItem(lsKey(
 export function savePersonalBest(course, ms) { try { localStorage.setItem(lsKey(course) + '.pb', String(ms)); } catch { /* storage off */ } }
 export function lastInitials() { try { const s = localStorage.getItem('ai2033.initials') || ''; return /^[A-Z]{3}$/.test(s) ? s : 'AAA'; } catch { return 'AAA'; } }
 export function saveInitials(s) { try { localStorage.setItem('ai2033.initials', s); } catch { /* storage off */ } }
+
+// the link to share for one entry: its own page when the share service is set up, else the game itself
+export function shareLink({ id, initials, ms, leg }) {
+  if (SHARE) return id ? `${SHARE}/r/${id}` : `${SHARE}/r?n=${initials}&ms=${ms}&k=${leg}`;
+  return leg === 0 ? `https://ai2033.taipei/3d/?race&vs=${initials}.${ms}` : 'https://ai2033.taipei/3d/?race';
+}
+export const boardLink = () => (SHARE ? `${SHARE}/b` : 'https://ai2033.taipei/rank/');

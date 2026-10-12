@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>2033 外送王排行榜｜臺北 2033</title>
+<meta name="description" content="臺北 2033 外送王的全台排行榜：總榜比 5 單全送完的時間，另有 5 張任務榜，即時更新。">
+<link rel="canonical" href="https://ai2033.taipei/rank/">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://ai2033.taipei/rank/">
+<meta property="og:title" content="2033 外送王・全台排行榜">
+<meta property="og:description" content="開小黃在 2033 年的臺北AI園區送 5 單，總榜＋5 張任務榜即時更新。你上榜了嗎？">
+<meta property="og:image" content="https://ai2033.taipei/assets/og-rank.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://ai2033.taipei/assets/og-rank.jpg">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏆</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root { color-scheme: dark; --bg: #0b1730; --panel: #13264f; --panel2: #0f1f42; --line: rgba(169,182,211,.2); --fg: #f5f7fa; --muted: #b3bfd8; --gold: #ffc83d; --gold2: #ffe08a; --cyan: #58d8ff; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: radial-gradient(1000px 600px at 80% -10%, rgba(255,200,61,.16), transparent 60%), var(--bg); color: var(--fg); font: 19px/1.6 "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif; min-height: 100vh; }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 0 16px; padding-block: max(24px, env(safe-area-inset-top)) 56px; display: grid; gap: 22px; }
+  .kicker { margin: 0; color: var(--gold); font-weight: 900; letter-spacing: .14em; font-size: 16px; }
+  h1 { margin: 2px 0 0; font-size: clamp(40px, 9vw, 64px); font-weight: 900; line-height: 1.1; text-wrap: balance; }
+  h1 em { font-style: normal; color: var(--gold); }
+  .lede { margin: 6px 0 0; color: var(--muted); max-width: 40em; }
+  .src { display: inline-flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 15px; color: var(--muted); }
+  .src i { width: 10px; height: 10px; border-radius: 50%; background: #6b7a99; }
+  .src.live i { background: #3fbf63; box-shadow: 0 0 0 4px rgba(63,191,99,.2); }
+  .tabs { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tabs button { flex: none; font: inherit; font-size: 17px; font-weight: 700; padding: 9px 16px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel2); color: var(--fg); cursor: pointer; }
+  .tabs button.on { background: var(--gold); color: #1a1200; border-color: var(--gold); }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 20px; padding: 20px; display: grid; gap: 12px; }
+  .card h2 { margin: 0; font-size: 24px; font-weight: 900; }
+  .card .note { margin: 0; color: var(--muted); font-size: 16px; }
+  ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-variant-numeric: tabular-nums; }
+  li { display: grid; grid-template-columns: 3em 4.6em 1fr; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 12px; background: rgba(255,255,255,.04); font-size: 22px; }
+  li .rk { text-align: center; font-weight: 900; color: var(--muted); }
+  li:nth-child(1) .rk, li:nth-child(2) .rk, li:nth-child(3) .rk { color: #1a1200; border-radius: 999px; padding: 2px 0; }
+  li:nth-child(1) .rk { background: #ffc83d; } li:nth-child(2) .rk { background: #d7dde8; } li:nth-child(3) .rk { background: #e0a370; }
+  li b { font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; letter-spacing: .16em; font-size: 24px; color: var(--gold2); }
+  li .t { text-align: right; font-weight: 700; }
+  li.empty { display: block; color: var(--muted); font-size: 18px; text-align: center; padding: 22px; }
+  .actions { display: flex; flex-wrap: wrap; gap: 10px; }
+  .btn { display: inline-flex; align-items: center; gap: .4em; padding: 13px 20px; border-radius: 14px; border: 2px solid rgba(255,255,255,.3); background: rgba(255,255,255,.06); color: #fff; font: inherit; font-weight: 700; font-size: 18px; text-decoration: none; cursor: pointer; }
+  .btn.gold { background: linear-gradient(180deg, #ffd75e, #ffb800); color: #1a1200; border-color: #ffe9a6; }
+  .copy { display: flex; gap: 8px; }
+  .copy[hidden] { display: none; }
+  .copy input { flex: 1; min-width: 0; font: inherit; font-size: 15px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: #05080e; color: #fff; }
+  .fine { margin: 0; color: var(--muted); font-size: 15px; line-height: 1.7; }
+  .fine a { color: var(--gold2); }
+  @media (max-width: 520px) { li { font-size: 19px; grid-template-columns: 2.6em 4.2em 1fr; padding: 9px 12px; } li b { font-size: 20px; } }
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header>
+    <p class="kicker">臺北 2033・外送王</p>
+    <h1>全台<em>排行榜</em></h1>
+    <p class="lede">開小黃在 2033 年的臺北AI園區送 5 單。總榜比全部送完的時間；每一單另有自己的任務榜。</p>
+    <p class="src" id="src"><i></i><span>載入中…</span></p>
+  </header>
+
+  <nav class="tabs" id="tabs" role="tablist" aria-label="選擇排行榜"></nav>
+
+  <section class="card" aria-live="polite">
+    <h2 id="title">總榜</h2>
+    <p class="note" id="sub"></p>
+    <ol id="list"><li class="empty">載入中…</li></ol>
+  </section>
+
+  <div class="actions">
+    <a class="btn gold" href="../3d/?race">🏁 我也要挑戰</a>
+    <button class="btn" id="share" type="button">📣 分享排行榜</button>
+    <a class="btn" href="../index.html">🏠 回首頁</a>
+  </div>
+  <div class="copy" id="copyRow" hidden><input id="copyText" readonly aria-label="分享連結"><button class="btn" id="copyBtn" type="button">複製</button></div>
+
+  <p class="fine">每筆成績登錄時，伺服器會重播整趟路線：從起點出發、依序送到每一站，而且任何時候都不能比小黃三段加速的極速（209 km/h）還快。非官方粉絲作品；園區配置為示意。<a href="https://github.com/dAAAb/ai2033.taipei/tree/claude/taipei-ai-park-interactive-wsso9d/tools/leaderboard">排行榜怎麼運作</a></p>
+</main>
+
+<script type="module">
+  import * as board from '../3d/js/board.js';
+  import { RACE } from '../3d/js/content.js';
+  const $ = (id) => document.getElementById(id);
+  const N = 20, NST = RACE.stops.length;
+  const fmtTime = (ms) => `${Math.floor(ms / 60000)}:${((ms % 60000) / 1000).toFixed(2).padStart(5, '0')}`;
+  const fmt = (ms) => (ms >= 60000 ? fmtTime(ms) : `${(ms / 1000).toFixed(2)} 秒`);
+  const tabs = [{ leg: 0, name: '總榜', title: '總榜・5 單全部送完', sub: '從松機入口出發，依序送完 5 單的總時間。' }]
+    .concat(RACE.stops.map((s, k) => ({ leg: k + 1, name: `${s.icon} 第 ${k + 1} 單`, title: `第 ${k + 1} 單任務榜・${s.icon} ${s.item}`, sub: `${s.item} → ${s.to}（${s.note}）` })));
+  let tab = Math.max(0, Math.min(NST, +(new URLSearchParams(location.search).get('leg') || 0))) || 0, data = null;
+
+  function drawTabs() {
+    $('tabs').innerHTML = tabs.map(t => `<button type="button" role="tab" aria-selected="${t.leg === tab}" class="${t.leg === tab ? 'on' : ''}" data-leg="${t.leg}">${t.name}</button>`).join('');
+    $('tabs').querySelectorAll('button').forEach(b => b.onclick = () => { tab = +b.dataset.leg; history.replaceState(null, '', tab ? `?leg=${tab}` : location.pathname); drawTabs(); draw(); });
+  }
+  function draw() {
+    const t = tabs[tab];
+    $('title').textContent = t.title; $('sub').textContent = t.sub;
+    if (!data) return;
+    const rows = tab === 0 ? data.total : data.legs[tab - 1];
+    $('list').innerHTML = rows.length
+      ? rows.map((r, j) => `<li><span class="rk">${j + 1}</span><b>${r.i}</b><span class="t">${fmt(r.ms)}</span></li>`).join('')
+      : '<li class="empty">還沒有人上榜，搶第一！</li>';
+  }
+  async function load() {
+    data = await board.boards(RACE.id, NST, N);
+    const src = $('src');
+    src.className = `src${data.shared ? ' live' : ''}`;
+    src.querySelector('span').textContent = data.shared
+      ? `全台即時排行榜・更新於 ${new Date().toLocaleTimeString('zh-TW', { hour12: false })}`
+      : '暫時連不上全台排行榜，先顯示這台裝置的紀錄';
+    draw();
+  }
+  drawTabs(); draw(); load();
+  setInterval(() => { if (document.visibilityState === 'visible') load(); }, 30000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') load(); });
+
+  $('share').onclick = async () => {
+    const url = board.boardLink(), text = '臺北 2033 外送王・全台排行榜：開小黃送 5 單，你上得了榜嗎？🛵';
+    if (navigator.share) { try { await navigator.share({ title: '2033 外送王排行榜', text, url }); return; } catch { /* fall back to copy */ } }
+    $('copyRow').hidden = false; $('copyText').value = `${text} ${url}`; $('copyText').select();
+  };
+  $('copyBtn').onclick = () => {
+    const t = $('copyText');
+    try { navigator.clipboard.writeText(t.value).then(() => { $('copyBtn').textContent = '已複製 ✓'; }, () => t.select()); } catch { t.select(); }
+  };
+</script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "name": "ai2033-share",
+  "private": true,
+  "type": "module",
+  "description": "Share pages and cards for 2033 外送王 runs: per-run Open Graph tags and images, deployed on Vercel",
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@resvg/resvg-js": "2.6.2",
+    "satori": "0.33.5"
+  }
+}

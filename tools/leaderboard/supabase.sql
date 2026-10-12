@@ -52,7 +52,7 @@ returns jsonb language sql stable security definer set search_path = public as $
     group by g.leg
   )
   select jsonb_build_object(
-    'rev', 2,   -- the game only uses the shared boards when this matches (3d/js/board.js REV)
+    'rev', 3,   -- the game only uses the shared boards when this matches (3d/js/board.js REV)
     'total', coalesce((select rows from boards where leg = 0), '[]'::jsonb),
     'legs', coalesce((select jsonb_agg(rows order by leg) from boards where leg > 0), '[]'::jsonb))
 $$;
@@ -65,7 +65,7 @@ declare
   c jsonb := public.race_course(p_course);
   vmax constant numeric := 60.5;   -- the taxi's top speed (boost stage Ⅲ) is 58 m/s
   nstops int; ns int; n int; k int := 0; i int; lg int; lms int;
-  prev jsonb; cur jsonb; st jsonb; dt numeric; d numeric; rad numeric; who text;
+  prev jsonb; cur jsonb; st jsonb; dt numeric; d numeric; rad numeric; who text; nid bigint;
   out jsonb := '{}'::jsonb;
 begin
   if c is null then raise exception 'bad_course'; end if;
@@ -97,31 +97,34 @@ begin
   cur := p_trace->0;
   if jsonb_typeof(cur) <> 'array' or jsonb_array_length(cur) <> 3 or (cur->>0)::numeric > 1000
      or sqrt(((cur->>1)::numeric - (c->'start'->>0)::numeric) ^ 2 + ((cur->>2)::numeric - (c->'start'->>1)::numeric) ^ 2) > 60 then
-    raise exception 'implausible';
+    raise exception 'implausible' using detail = 'start';
   end if;
   -- walk the route: time only moves forward, no sample faster than the taxi, each stop reached in order at its split
   for i in 1 .. n - 1 loop
     prev := cur; cur := p_trace->i;
     if jsonb_typeof(cur) <> 'array' or jsonb_array_length(cur) <> 3 then raise exception 'implausible'; end if;
     dt := ((cur->>0)::numeric - (prev->>0)::numeric) / 1000;
-    if dt < 0 or dt > 1.5 then raise exception 'implausible'; end if;
+    if dt < 0 or dt > 1.5 then raise exception 'implausible' using detail = 'clock'; end if;
     d := sqrt(((cur->>1)::numeric - (prev->>1)::numeric) ^ 2 + ((cur->>2)::numeric - (prev->>2)::numeric) ^ 2);
-    if d > vmax * dt + 3 then raise exception 'implausible'; end if;   -- +3 m for positions rounded to the metre
+    if d > vmax * dt + 3 then   -- +3 m for positions rounded to the metre
+      raise exception 'implausible' using detail = format('speed %s at %s', round(d / greatest(dt, 0.05)), (cur->>0)::int);
+    end if;
     if k < ns and (cur->>0)::int = p_splits[k + 1] then
       st := c->'stops'->k;
       if sqrt(((cur->>1)::numeric - (st->>0)::numeric) ^ 2 + ((cur->>2)::numeric - (st->>1)::numeric) ^ 2) > rad then
-        raise exception 'implausible';
+        raise exception 'implausible' using detail = format('stop %s', k + 1);
       end if;
       k := k + 1;
     end if;
   end loop;
-  if k <> ns or (cur->>0)::int <> p_splits[ns] then raise exception 'implausible'; end if;
+  if k <> ns or (cur->>0)::int <> p_splits[ns] then raise exception 'implausible' using detail = 'route'; end if;
 
   foreach lg in array p_legs loop
     lms := case when lg = 0 then p_splits[nstops] else p_splits[lg] - coalesce(p_splits[lg - 1], 0) end;
     if lms < 1000 then raise exception 'implausible'; end if;
-    insert into public.race_scores (course, leg, initials, ms, splits, client) values (p_course, lg, p_initials, lms, p_splits, who);
+    insert into public.race_scores (course, leg, initials, ms, splits, client) values (p_course, lg, p_initials, lms, p_splits, who) returning id into nid;
     out := out || jsonb_build_object(lg::text, jsonb_build_object(
+      'id', nid,   -- share links point at this entry (og/ renders its card)
       'ms', lms,
       'rank', (select count(*) + 1 from public.race_scores where course = p_course and leg = lg and ms < lms),
       'total', (select count(*) from public.race_scores where course = p_course and leg = lg)));
@@ -130,6 +133,17 @@ begin
 end
 $$;
 
+-- one entry with its live place on its board, for share cards: {id, course, leg, initials, ms, rank, total, at}
+create or replace function public.race_entry(p_id bigint)
+returns jsonb language sql stable security definer set search_path = public as $$
+  select jsonb_build_object('id', s.id, 'course', s.course, 'leg', s.leg, 'initials', s.initials, 'ms', s.ms, 'at', s.created_at,
+    'rank', (select count(*) + 1 from public.race_scores t where t.course = s.course and t.leg = s.leg and t.ms < s.ms),
+    'total', (select count(*) from public.race_scores t where t.course = s.course and t.leg = s.leg))
+  from public.race_scores s where s.id = p_id
+$$;
+
+revoke all on function public.race_entry(bigint) from public;
+grant execute on function public.race_entry(bigint) to anon, authenticated;
 revoke all on function public.race_boards(text, int) from public;
 revoke all on function public.submit_score(text, text, int[], int[], jsonb) from public;
 grant execute on function public.race_boards(text, int) to anon, authenticated;

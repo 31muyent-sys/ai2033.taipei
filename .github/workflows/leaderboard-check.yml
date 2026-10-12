@@ -24,7 +24,7 @@ jobs:
           call() { curl -sS -o /tmp/out.json -w '%{http_code}' -X POST -H "apikey: $KEY" -H 'Content-Type: application/json' -d "$2" "$URL/rest/v1/rpc/$1"; }
           fail=0
           code=$(call race_boards '{"p_course":"c1","p_limit":10}'); echo "race_boards -> HTTP $code"; cat /tmp/out.json; echo
-          if [ "$code" != 200 ] || ! jq -e '(.rev == 2) and (.total | type == "array") and (.legs | length == 5)' /tmp/out.json >/dev/null; then
+          if [ "$code" != 200 ] || ! jq -e '(.rev >= 3) and (.total | type == "array") and (.legs | length == 5)' /tmp/out.json >/dev/null; then
             echo "::error::race_boards is missing, outdated or answers the wrong shape — run the current tools/leaderboard/supabase.sql in the SQL editor"; fail=1
           else
             jq -r '"total board: \(.total | length) entries; order boards: \([.legs[] | length] | join(", "))"' /tmp/out.json

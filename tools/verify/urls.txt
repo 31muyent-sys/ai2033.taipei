@@ -1,5 +1,6 @@
 https://ai2033.taipei/
 https://ai2033.taipei/3d/
+https://ai2033.taipei/rank/
 https://ai2033.taipei/3d/data/city.json
 https://ai2033.taipei/transcript/
 https://ai2033.taipei/transcript/transcript.md

@@ -1265,6 +1265,7 @@ function drawTabs() {
 function drawBoard() {
   const r = S.race, b = r.boards; if (!b) { $('reBoard').innerHTML = '<li class="empty">載入排行榜中…</li>'; return; }
   const leg = r.tab, rows = leg === 0 ? b.total : b.legs[leg - 1], st = RACE.stops[leg - 1];
+  $('reAll').href = leg ? `../rank/?leg=${leg}` : '../rank/';
   $('reBoardTitle').textContent = `🏆 ${b.shared ? '全台' : '這台裝置'}・${leg === 0 ? '總榜（5 單全送完）' : `第 ${leg} 單 ${st.icon} ${st.item}`}`;
   const mine = r.mine[leg];
   if (mine != null) {   // registered: highlight the entry on the refreshed board (or add it below with its rank)
@@ -1314,6 +1315,13 @@ $('reInit').querySelectorAll('.slot').forEach((el, k) => {
   }
 });
 const BOARD_ERR = { rate_limited: '登錄太頻繁了，等 15 秒再按一次', implausible: '這筆紀錄沒有通過排行榜檢查，所以沒有上榜', blocked_initials: '這組字母不能用，換一組吧', bad_initials: '請輸入 3 個英文字母', bad_course: '路線版本不同，請重新整理頁面' };
+// what the leaderboard's route check found, in words (tools/leaderboard/supabase.sql submit_score details)
+function whyRefused(detail) {
+  const m = /^speed (\d+) at (\d+)/.exec(detail || ''), st = /^stop (\d+)/.exec(detail || '');
+  if (m) return `這筆紀錄在第 ${(+m[2] / 1000).toFixed(1)} 秒時速 ${Math.round(+m[1] * 3.6)} km/h，超過小黃極速 ${Math.round(BOOST.max[3] * 3.6)} km/h，所以沒有上榜（成績留在這台裝置）`;
+  if (st) return `第 ${st[1]} 單的送達位置對不上，所以沒有上榜（成績留在這台裝置）`;
+  return BOARD_ERR.implausible;
+}
 async function submitRun() {
   const r = S.race; if (!r || r.submitted || $('reSubmit').disabled) return;
   const legs = regLegs(r); if (!legs.length) return;
@@ -1323,10 +1331,11 @@ async function submitRun() {
   const last = r.splits[r.splits.length - 1];
   const res = await board.submit(RACE.id, NST, { initials: INIT.s, legs, splits: r.splits, trace: r.trace.filter(t => t[0] <= last) });
   if (res.reason && ['rate_limited', 'blocked_initials', 'bad_initials'].includes(res.reason)) { $('reMsg').textContent = BOARD_ERR[res.reason]; $('reSubmit').disabled = false; return; }
+  if (res.reason === 'implausible') res.why = whyRefused(res.detail);
   r.submitted = true; r.who = INIT.s; r.shared = res.shared; r.ranks = res.ranks;
   r.mine = {}; for (const leg of legs) r.mine[leg] = leg === 0 ? r.ms : legMs(r, leg);
   $('reEntry').hidden = true;
-  $('reMsg').textContent = res.reason ? (BOARD_ERR[res.reason] || '排行榜暫時連不上，成績先存在這台裝置') : '';
+  $('reMsg').textContent = res.reason ? (res.why || BOARD_ERR[res.reason] || '排行榜暫時連不上，成績先存在這台裝置') : '';
   const where = res.shared ? '全台' : '這台裝置';
   const got = legs.filter(l => res.ranks[l]);
   const tot = got.includes(0) ? `總榜第 ${res.ranks[0].rank} 名` : '';
@@ -1336,16 +1345,16 @@ async function submitRun() {
 }
 function raceShare() {
   const r = S.race; if (!r || !r.splits.length) return;
-  const who = r.who || INIT.s, where = r.shared ? '全台' : '';
-  let url = `${SITE}?race`, text;
+  const who = r.who || INIT.s, where = '全台', rk = (leg) => r.shared && r.ranks && r.ranks[leg];   // only places on the shared boards count
+  let url, text;
   if (r.full) {
-    url += `&vs=${who}.${r.ms}`;
-    const rk = r.ranks && r.ranks[0];
-    text = `我在「臺北 2033 外送王」送完 5 單只花 ${fmtTime(r.ms)}${rk ? `，${where}總榜第 ${rk.rank} 名` : ''} 🛵 你能比我快嗎？`;
+    url = board.shareLink({ id: r.shared && rk(0) && rk(0).id, initials: who, ms: r.ms, leg: 0 });
+    text = `我在「臺北 2033 外送王」送完 5 單只花 ${fmtTime(r.ms)}${rk(0) ? `，${where}總榜第 ${rk(0).rank} 名` : ''} 🛵 你能比我快嗎？`;
   } else {
-    const best = r.pend.map(k => ({ k, rk: r.ranks && r.ranks[k] })).sort((a, b) => (a.rk ? a.rk.rank : 99) - (b.rk ? b.rk.rank : 99))[0];
-    const k = best ? best.k : r.splits.length, st = RACE.stops[k - 1];
-    text = `我在「臺北 2033 外送王」第 ${k} 單送${st.item}只花 ${fmtSec(legMs(r, k))}${best && best.rk ? `，${where}任務榜第 ${best.rk.rank} 名` : ''} 🛵 你送得比我快嗎？`;
+    const best = r.pend.map(k => ({ k, rk: rk(k) })).sort((a, b) => (a.rk ? a.rk.rank : 99) - (b.rk ? b.rk.rank : 99))[0];
+    const k = best ? best.k : r.splits.length, st = RACE.stops[k - 1], ms = legMs(r, k);
+    url = board.shareLink({ id: r.shared && best && best.rk && best.rk.id, initials: who, ms, leg: k });
+    text = `我在「臺北 2033 外送王」第 ${k} 單送${st.item}只花 ${fmtSec(ms)}${best && best.rk ? `，${where}任務榜第 ${best.rk.rank} 名` : ''} 🛵 你送得比我快嗎？`;
   }
   const enc = encodeURIComponent;
   $('shFb').href = `https://www.facebook.com/sharer/sharer.php?u=${enc(url)}`;

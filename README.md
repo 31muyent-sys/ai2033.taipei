@@ -74,6 +74,8 @@
 - 路線：🥛 鮮奶 → 國際永續生活聚落、🍱 雞腿便當 → AI 產業聚落、🧋 珍珠奶茶 → 中央公園、🍍 鳳梨酥 → XY 軸捷運松機站、🍗 鹹酥雞 → 基隆河岸，全程約 3.3 公里
 - 比賽中不能空拍、切年份、看導覽或瞬移回道路
 - 排行榜：全台共用（Supabase），伺服器會逐點檢查路線；連不上時先存在玩家自己的裝置（見 [`tools/leaderboard/`](tools/leaderboard/)）
+- 不用玩也能看榜：<https://ai2033.taipei/rank/>
+- 分享卡：每筆成績的分享連結都有自己的預覽圖（名字、時間、名次），由 [`og/`](og/) 的小型 Vercel 服務產生
 
 | 操作 | 電腦 | 手機 |
 |---|---|---|
@@ -102,6 +104,8 @@ assets/                 網站樣式、照片（含授權資訊）、3D 渲染�
 docs/                   README 用的示範影片、截圖、社群預覽圖
 tools/build/            資料與素材產生腳本
 tools/fetch/            在 GitHub Actions 抓取照片、OSM、新聞原文與音訊
+rank/                   外送王排行榜頁
+og/                     分享卡服務（Vercel）：每筆成績的分享頁與預覽圖
 tools/leaderboard/      外送賽全台排行榜的 Supabase 設定（SQL 與說明）
 tools/verify/           上線後的連結與瀏覽器檢查
 .github/workflows/      上述抓取與檢查的工作流程

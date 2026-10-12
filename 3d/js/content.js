@@ -8,6 +8,8 @@ export const PHOTO = {
   map: '../assets/photos/chiang-map.jpg',
   lee: '../assets/photos/lee-shih-chuan.jpg',
 };
+// campaign art hung on roadside T霸 and rooftop signs around the delivery course
+export const SIGN = { src: '../assets/signs/antidrug.jpg', aspect: 494 / 1057 };
 
 export const INTRO = {
   kicker: '2026.10.08 臺北市政府記者會',
@@ -87,8 +89,9 @@ export const TOUR = [
 
 // 2033 外送王: a fixed five-order course through the AI park, timed. Points are world metres (x east, z south)
 // and must match the course the leaderboard validates (tools/leaderboard/supabase.sql) — bump `id` if they move.
+// c1 ran at the old top speed (209 km/h on the meter); c2 is the 1:6 toy-scale taxi (100 km/h on the meter).
 export const RACE = {
-  id: 'c1', title: '2033 外送王', sub: '5 單限時外送挑戰',
+  id: 'c2', title: '2033 外送王', sub: '5 單限時外送挑戰',
   start: [101, 691], radius: 30,
   stops: [
     { at: [1001, 551], icon: '🥛', item: '鮮奶', to: '國際永續生活聚落', note: '新住民的早餐' },

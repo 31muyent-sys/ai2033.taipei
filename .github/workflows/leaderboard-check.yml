@@ -23,15 +23,15 @@ jobs:
           echo "project: $URL"
           call() { curl -sS -o /tmp/out.json -w '%{http_code}' -X POST -H "apikey: $KEY" -H 'Content-Type: application/json' -d "$2" "$URL/rest/v1/rpc/$1"; }
           fail=0
-          code=$(call race_boards '{"p_course":"c1","p_limit":10}'); echo "race_boards -> HTTP $code"; cat /tmp/out.json; echo
+          code=$(call race_boards '{"p_course":"c2","p_limit":10}'); echo "race_boards -> HTTP $code"; cat /tmp/out.json; echo
           if [ "$code" != 200 ] || ! jq -e '(.rev >= 3) and (.total | type == "array") and (.legs | length == 5)' /tmp/out.json >/dev/null; then
             echo "::error::race_boards is missing, outdated or answers the wrong shape — run the current tools/leaderboard/supabase.sql in the SQL editor"; fail=1
           else
             jq -r '"total board: \(.total | length) entries; order boards: \([.legs[] | length] | join(", "))"' /tmp/out.json
           fi
-          code=$(call submit_score '{"p_course":"c1","p_initials":"ab","p_legs":[1],"p_splits":[20000],"p_trace":[]}'); echo "bad initials -> HTTP $code $(cat /tmp/out.json)"
+          code=$(call submit_score '{"p_course":"c2","p_initials":"ab","p_legs":[1],"p_splits":[20000],"p_trace":[]}'); echo "bad initials -> HTTP $code $(cat /tmp/out.json)"
           jq -e '.message == "bad_initials"' /tmp/out.json >/dev/null || { echo "::error::submit_score did not refuse bad initials"; fail=1; }
-          code=$(call submit_score '{"p_course":"c1","p_initials":"QQQ","p_legs":[1],"p_splits":[20000],"p_trace":[[0,101,691],[20000,1001,551]]}'); echo "teleporting run -> HTTP $code $(cat /tmp/out.json)"
+          code=$(call submit_score '{"p_course":"c2","p_initials":"QQQ","p_legs":[1],"p_splits":[20000],"p_trace":[[0,101,691],[20000,1001,551]]}'); echo "teleporting run -> HTTP $code $(cat /tmp/out.json)"
           jq -e '.message == "implausible" or .message == "rate_limited"' /tmp/out.json >/dev/null || { echo "::error::submit_score did not refuse an impossible run"; fail=1; }
           code=$(curl -sS -o /tmp/out.json -w '%{http_code}' -H "apikey: $KEY" "$URL/rest/v1/race_scores?select=*&limit=1"); echo "direct table read -> HTTP $code $(cat /tmp/out.json)"
           if [ "$code" = 200 ] && [ "$(jq 'length' /tmp/out.json)" != 0 ]; then echo "::error::race_scores is readable directly"; fail=1; fi

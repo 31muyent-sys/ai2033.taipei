@@ -5,7 +5,7 @@ const DB = {
   url: process.env.SUPABASE_URL || 'https://ogvqrfdgflxhfdqwtrxq.supabase.co',
   key: process.env.SUPABASE_KEY || 'sb_publishable_Fe_h6sRUasUjh3jCuXkgKA_qtCRfwpM',
 };
-export const COURSE = 'c1';
+export const COURSE = 'c2';   // 3d/js/content.js RACE.id
 // the five orders of course c1 (3d/js/content.js RACE)
 export const ORDERS = [
   { item: '鮮奶', to: '國際永續生活聚落' },

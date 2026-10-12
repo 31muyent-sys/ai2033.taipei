@@ -10,7 +10,7 @@ import {
   U, flatToPts, ringsOf, flatPolys, ribbons, pointInRing, signedArea, patchBuildingMaterial, patchRoadMaterial, waterMaterial,
   buildBuildings, makeTreeGeometries, makePlane, makeTaxi, makeTaipei101, makeGrandHotel, makeFerrisWheel, mergeGeometries,
 } from './city.js';
-import { PHOTO, INTRO, MISSIONS, CHECKPOINTS, FINALE, STATS, TOUR, RACE } from './content.js';
+import { PHOTO, SIGN, INTRO, MISSIONS, CHECKPOINTS, FINALE, STATS, TOUR, RACE } from './content.js';
 import * as board from './board.js';
 
 const $ = (id) => document.getElementById(id);
@@ -203,6 +203,8 @@ async function build() {
   setLoad(0.84, '種下 110 公頃的樹…'); await frame();
   buildFuture(D);
   buildTrees(forestTrees);
+  buildStreetTrees();
+  buildSigns();
   setLoad(0.9, '放上地標與車流…'); await frame();
   buildLandmarks(D);
   buildTraffic();
@@ -425,6 +427,193 @@ function updateTrees(t) {
     trees.trunk.setMatrixAt(i, _m); trees[d.slot[0]].setMatrixAt(d.slot[1], _m);
   });
   trees.trunk.instanceMatrix.needsUpdate = trees.a.instanceMatrix.needsUpdate = trees.b.instanceMatrix.needsUpdate = true;
+}
+
+// ---------------- street trees ----------------
+// 行道樹 on both sidewalks of every arterial road, kept off buildings, water and side streets (so each crossing
+// gets its gap). That is tens of thousands of trees, so they sit in a grid and only those around the view are drawn.
+const STREET = { cell: 200, radius: LOW ? 750 : 1150, cap: LOW ? 3500 : 8000 };
+let street = null;
+// open ground for street furniture: off every building (2026 and 2033), the water and 2033's park avenues
+let _wet = null, _fut = null;
+function openGround(x, z) {
+  for (const f of footprintGrid.g.get(Math.floor(x / footprintGrid.cell) + ',' + Math.floor(z / footprintGrid.cell)) || []) {
+    if (x > f.minx - 1.5 && x < f.maxx + 1.5 && z > f.minz - 1.5 && z < f.maxz + 1.5 && pointInRing(x, z, f.r)) return false;
+  }
+  if (!_fut) {   // one box around everything 2033 adds, so most of the city skips those checks
+    _fut = { minx: Infinity, maxx: -Infinity, minz: Infinity, maxz: -Infinity };
+    const grow = (x, z) => { _fut.minx = Math.min(_fut.minx, x - 15); _fut.maxx = Math.max(_fut.maxx, x + 15); _fut.minz = Math.min(_fut.minz, z - 15); _fut.maxz = Math.max(_fut.maxz, z + 15); };
+    for (const f of future.userData.footprints || []) { grow(f.minx, f.minz); grow(f.maxx, f.maxz); }
+    if (future.userData.corridors) for (const sg of corridorSegs()) { grow(...sg.a); grow(...sg.b); }
+  }
+  if (x > _fut.minx && x < _fut.maxx && z > _fut.minz && z < _fut.maxz) {
+    for (const f of future.userData.footprints || []) { if (x > f.minx - 1.5 && x < f.maxx + 1.5 && z > f.minz - 1.5 && z < f.maxz + 1.5 && pointInRing(x, z, f.r)) return false; }
+    for (const s of future.userData.corridors ? corridorSegs() : []) {
+      const [ax, az] = s.a, dx = s.b[0] - ax, dz = s.b[1] - az, l2 = dx * dx + dz * dz || 1;
+      const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2));
+      if (Math.hypot(x - ax - dx * t, z - az - dz * t) < s.w / 2 + 2) return false;
+    }
+  }
+  _wet ??= waterRings.map(r => ({ r, minx: Math.min(...r.map(p => p[0])), maxx: Math.max(...r.map(p => p[0])), minz: Math.min(...r.map(p => p[1])), maxz: Math.max(...r.map(p => p[1])) }));
+  return !_wet.some(w => x > w.minx && x < w.maxx && z > w.minz && z < w.maxz && pointInRing(x, z, w.r));
+}
+function buildStreetTrees() {
+  const gap = { 1: 14, 2: 13, 3: 16, 4: 21 };   // metres between trees: trunk, primary, secondary, tertiary roads
+  const clear = (x, z) => !onRoad(x, z) && openGround(x, z);
+  const grid = new Map();
+  for (const r of roadLines) {
+    const sp = gap[r.k]; if (!sp || r.e) continue;
+    const off = r.w / 2 + 3.2;
+    let next = sp / 2, walked = 0;
+    for (let i = 1; i < r.pts.length; i++) {
+      const a = r.pts[i - 1], b = r.pts[i], dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz);
+      for (; next < walked + L; next += sp) {
+        const f = (next - walked) / L, x = a[0] + dx * f, z = a[1] + dz * f;
+        for (const s of [-off, off]) {
+          const tx = x - dz / L * s, tz = z + dx / L * s;
+          if (!clear(tx, tz)) continue;
+          const k = Math.floor(tx / STREET.cell) + ',' + Math.floor(tz / STREET.cell);
+          if (!grid.has(k)) grid.set(k, []);
+          // x, z, size, turn, crown colour: mostly camphor / banyan greens, and about one in four a 台灣欒樹 in its autumn yellow or rust
+          const rnd = Math.random();
+          grid.get(k).push([tx, tz, 1 + Math.random() * 0.4, Math.random() * 6.28, rnd < 0.14 ? 3 : rnd < 0.24 ? 4 : Math.floor(Math.random() * 3)]);
+        }
+      }
+      walked += L;
+    }
+  }
+  const { trunk, crownA } = makeTreeGeometries();
+  street = {
+    grid, cx: Infinity, cz: Infinity,
+    trunk: new THREE.InstancedMesh(trunk, new THREE.MeshLambertMaterial({ color: 0x5e4129 }), STREET.cap),
+    crown: new THREE.InstancedMesh(crownA, new THREE.MeshLambertMaterial({ color: 0xffffff }), STREET.cap),
+    cols: [0x3f6f35, 0x4d7f3a, 0x5d8c42, 0xc9a332, 0xa8613a].map(c => new THREE.Color(c)),
+  };
+  street.crown.setColorAt(0, street.cols[0]);   // create the colour buffer before the first draw compiles the shader
+  for (const m of [street.trunk, street.crown]) { m.count = 0; m.castShadow = true; m.frustumCulled = false; world.add(m); }
+}
+// ---------------- signs ----------------
+// 「我反毒!!」 on T霸 (tall roadside boards that reach out over the kerb, readable from both directions) and on
+// rooftop signs facing the main roads, spread around the delivery course so every run passes a few.
+function buildSigns() {
+  const tex = new THREE.TextureLoader().load(SIGN.src, (t) => { t.colorSpace = THREE.SRGBColorSpace; t.needsUpdate = true; });
+  tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
+  const faceMat = new THREE.MeshBasicMaterial({ map: tex, toneMapped: false });
+  const frameMat = new THREE.MeshLambertMaterial({ color: 0x4c5158 });
+  const focus = [RACE.start, ...RACE.stops.map(st => st.at)];
+  const dist = (x, z) => Math.min(...focus.map(p => Math.hypot(p[0] - x, p[1] - z)));
+  const placed = [];
+  const apart = (x, z, d) => placed.every(p => Math.hypot(p[0] - x, p[1] - z) > d);
+  // a board: two faces back to back in a frame, its local +z facing along `yaw`
+  const board = (w) => {
+    const h = w * SIGN.aspect, g = new THREE.Group();
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(w + 0.8, h + 0.8, 0.6), frameMat); frame.castShadow = true; g.add(frame);
+    for (const side of [1, -1]) {
+      const f = new THREE.Mesh(new THREE.PlaneGeometry(w, h), faceMat);
+      f.position.z = side * 0.32; if (side < 0) f.rotation.y = Math.PI; g.add(f);
+    }
+    return g;
+  };
+
+  // T霸: kerbside spots on trunk / primary / secondary roads, nearest the course first
+  const W = 24, H = W * SIGN.aspect, cands = [];
+  for (const r of roadLines) {
+    if (r.e || r.k < 1 || r.k > 3) continue;
+    for (let i = 1; i < r.pts.length; i++) {
+      const a = r.pts[i - 1], b = r.pts[i], L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 30) continue;
+      const ux = (b[0] - a[0]) / L, uz = (b[1] - a[1]) / L, mx = (a[0] + b[0]) / 2, mz = (a[1] + b[1]) / 2;
+      for (const side of [-1, 1]) {
+        const nx = -uz * side, nz = ux * side, off = r.w / 2 + 6;   // outward from the road
+        const px = mx + nx * off, pz = mz + nz * off, d = dist(px, pz);
+        if (d < 1600) cands.push({ px, pz, nx, nz, ux, uz, d });
+      }
+    }
+  }
+  cands.sort((p, q) => p.d - q.d);
+  let nT = 0;
+  for (const c of cands) {
+    if (nT >= (LOW ? 5 : 8)) break;
+    if (!apart(c.px, c.pz, 420) || onRoad(c.px, c.pz) || !openGround(c.px, c.pz)) continue;
+    // the board runs from 14 m over the road to 10 m behind the pole: keep that outer part clear of buildings
+    if (![4, 7, 10].every(k => openGround(c.px + c.nx * k, c.pz + c.nz * k))) continue;
+    const t = new THREE.Group();
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 1.1, 18, 10).translate(0, 9, 0), frameMat); pole.castShadow = true; t.add(pole);
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(W * 0.7, 0.8, 0.8).translate(0, 17.6, 0), frameMat); t.add(arm);
+    const bd = board(W); bd.position.set(0, 18 + H / 2, 0); t.add(bd);
+    // local x runs across the road (board edge to edge), local z along it (the faces look up and down the road)
+    t.rotation.y = Math.atan2(c.ux, c.uz);
+    const lx = Math.cos(t.rotation.y), lz = -Math.sin(t.rotation.y);   // where local +x points
+    const shift = (c.nx * lx + c.nz * lz) * -2;                       // centre the board 2 m towards the road
+    bd.position.x = shift; arm.position.x = shift;
+    t.position.set(c.px, 0, c.pz); world.add(t);
+    placed.push([c.px, c.pz, c.ux, c.uz, 'T']); nT++;
+  }
+
+  // rooftop signs: mid-rise buildings right on a main road, the board turned to face it
+  const roofs = [];
+  for (const f of buildings.footprints) {
+    if (f.f === 1 || f.h < 14 || f.h > 75) continue;
+    const bw = Math.min(f.maxx - f.minx, f.maxz - f.minz); if (bw < 16) continue;
+    const cx = (f.minx + f.maxx) / 2, cz = (f.minz + f.maxz) / 2; if (!pointInRing(cx, cz, f.r)) continue;
+    const d = dist(cx, cz); if (d > 1600) continue;
+    roofs.push({ f, cx, cz, bw, d });
+  }
+  roofs.sort((p, q) => p.d - q.d);
+  let nR = 0;
+  for (const c of roofs) {
+    if (nR >= (LOW ? 6 : 10)) break;
+    if (!apart(c.cx, c.cz, 320)) continue;
+    // nearest main-road point within 70 m
+    let best = null, bd2 = 70;
+    const cell = roadGrid.cell, gx = Math.floor(c.cx / cell), gz = Math.floor(c.cz / cell);
+    for (let i = gx - 1; i <= gx + 1; i++) for (let j = gz - 1; j <= gz + 1; j++) for (const sg of roadGrid.g.get(i + ',' + j) || []) {
+      if (sg.w < 10) continue;
+      const [ax, az] = sg.a, dx = sg.b[0] - ax, dz = sg.b[1] - az, l2 = dx * dx + dz * dz || 1;
+      const t = Math.max(0, Math.min(1, ((c.cx - ax) * dx + (c.cz - az) * dz) / l2));
+      const qx = ax + dx * t, qz = az + dz * t, dd = Math.hypot(c.cx - qx, c.cz - qz);
+      if (dd < bd2) { bd2 = dd; best = [qx, qz]; }
+    }
+    if (!best) continue;
+    const w = THREE.MathUtils.clamp(c.bw * 0.85, 14, 22), h = w * SIGN.aspect;
+    const g = new THREE.Group();
+    const bd = board(w); bd.position.y = c.f.h + 2.2 + h / 2; g.add(bd);
+    for (const sx of [-0.35, 0.35]) { const leg = new THREE.Mesh(new THREE.BoxGeometry(0.5, 2.6, 0.5).translate(sx * w, c.f.h + 1.3, 0), frameMat); g.add(leg); }
+    g.rotation.y = Math.atan2(best[0] - c.cx, best[1] - c.cz);
+    g.position.set(c.cx, 0, c.cz); world.add(g);
+    { const l = Math.hypot(best[0] - c.cx, best[1] - c.cz) || 1; placed.push([c.cx, c.cz, (best[0] - c.cx) / l, (best[1] - c.cz) / l, 'R', c.f.h]); } nR++;
+  }
+  S.signs = { tbars: nT, roofs: nR, spots: placed };
+}
+const _fw = new THREE.Vector3();
+function updateStreetTrees() {
+  if (!street) return;
+  // centre the drawn patch a little ahead of the camera, and refill it whenever that centre moves 60 m
+  camera.getWorldDirection(_fw);
+  const h = Math.hypot(_fw.x, _fw.z), lead = h > 0.05 ? STREET.radius * 0.45 / h : 0;
+  const cx = camera.position.x + _fw.x * lead, cz = camera.position.z + _fw.z * lead;
+  if (Math.hypot(cx - street.cx, cz - street.cz) < 60) return;
+  street.cx = cx; street.cz = cz;
+  const C = STREET.cell, Rr = STREET.radius, cells = [];
+  for (let gx = Math.floor((cx - Rr) / C); gx <= Math.floor((cx + Rr) / C); gx++) {
+    for (let gz = Math.floor((cz - Rr) / C); gz <= Math.floor((cz + Rr) / C); gz++) {
+      const list = street.grid.get(gx + ',' + gz); if (!list) continue;
+      const d = Math.hypot((gx + 0.5) * C - cx, (gz + 0.5) * C - cz);
+      if (d < Rr + C * 0.71) cells.push([d, list]);
+    }
+  }
+  cells.sort((a, b) => a[0] - b[0]);   // nearest first, so the cap only ever drops the far edge
+  let n = 0;
+  for (const [, list] of cells) {
+    for (const t of list) {
+      if (n >= STREET.cap) break;
+      _m.compose(_p.set(t[0], 0.05, t[1]), _q.setFromAxisAngle(_s.set(0, 1, 0), t[3]), _s.set(t[2], t[2], t[2]));
+      street.trunk.setMatrixAt(n, _m); street.crown.setMatrixAt(n, _m); street.crown.setColorAt(n, street.cols[t[4]]);
+      n++;
+    }
+  }
+  street.trunk.count = street.crown.count = n;
+  street.trunk.instanceMatrix.needsUpdate = street.crown.instanceMatrix.needsUpdate = true;
+  if (street.crown.instanceColor) street.crown.instanceColor.needsUpdate = true;
 }
 function updateFutureBuildings(t) {
   const ca = -R.ang;
@@ -958,10 +1147,16 @@ function updateTour(dt) {
 // Ⅰ 加速 → Ⅱ 衝刺 → Ⅲ 極速. A stage opens once the button has been held long enough and the taxi is close to the
 // current top speed. Each one widens the lens, adds manga speed lines, wind streaks and exhaust flames;
 // reaching Ⅲ breaks the "sound barrier" with a flash and a shock ring.
+// The map is real Taipei in metres, but the taxi is a toy at 1:6: the speedometer shows the world speed ÷ 6, so
+// the city never reads more than 100 km/h while an order still takes only a few seconds. Distances in the
+// result are the real ones on the map (× 1).
+const SPEED_SCALE = 6;
+const kmh = (v) => Math.round(Math.abs(v) * 3.6 / SPEED_SCALE);   // world m/s -> speedometer km/h
 const BOOST = {
-  max: [30, 40, 49, 58],   // top speed per stage, m/s (58 m/s ≈ 209 km/h; the leaderboard check allows 60.5)
-  acc: [12, 18, 22, 26],   // throttle acceleration per stage, m/s²
-  hold: [0, 1.0, 1.4],     // seconds in a stage before the next can open
+  kmh: [50, 70, 85, 100],  // speedometer top speed per stage
+  max: [50, 70, 85, 100].map(k => k * SPEED_SCALE / 3.6),   // the same in world m/s (83 / 117 / 142 / 167; the leaderboard allows 172)
+  acc: [36, 52, 64, 75],   // throttle acceleration per stage, world m/s²
+  hold: [0, 0.6, 0.8],     // seconds in a stage before the next can open
   word: ['', '加速！', '衝刺！！', '極速！！！'],
   tag: ['BOOST', 'BOOST Ⅰ', 'BOOST Ⅱ', 'BOOST MAX'],
   col: [0xffffff, 0xffa53d, 0x46c8ff, 0xc56bff],
@@ -1017,7 +1212,7 @@ function updateBoostFx(dt) {
   B.shake *= Math.pow(0.03, dt); B.flash *= Math.pow(0.0015, dt); B.kick *= Math.pow(0.012, dt);
   const sp = Math.abs(c.v);
   // the lens opens with the stage (and a little with plain speed)
-  const want = driving ? Math.min(B.fx * 14 + Math.min(1, sp / 58) * 4, 92 - baseFov) : 0;   // portrait phones start wide: cap at 92°
+  const want = driving ? Math.min(B.fx * 14 + Math.min(1, sp / BOOST.max[3]) * 4, 92 - baseFov) : 0;   // portrait phones start wide: cap at 92°
   fovKick += (want - fovKick) * Math.min(1, dt * 4);
   const fov = baseFov + fovKick;
   if (Math.abs(camera.fov - fov) > 0.02) { camera.fov = fov; camera.updateProjectionMatrix(); }
@@ -1028,7 +1223,7 @@ function updateBoostFx(dt) {
   fx.streaks.visible = sv;
   if (sv) {
     fx.streaks.material.opacity = 0.25 + B.fx * 0.55;
-    const flow = Math.max(sp, 20) * (1.1 + B.fx * 0.6);
+    const flow = Math.max(sp, 60) * 0.5 * (1.1 + B.fx * 0.6);
     fx.sd.forEach((s, i) => {
       const L = s.len * (1 + B.fx * 3.5);
       s.z -= flow * dt;
@@ -1227,6 +1422,11 @@ function boardRows(rows, me, n = board.TOP) {
   if (at >= n) html += row(me, me.rank || at + 1);
   return html || '<li class="empty">還沒有人上榜，搶第一！</li>';
 }
+// how far the taxi really went on the map (real Taipei metres, not the 1:6 speedometer)
+function driven(r) {
+  let m = 0; for (let k = 1; k < r.trace.length; k++) m += Math.hypot(r.trace[k][1] - r.trace[k - 1][1], r.trace[k][2] - r.trace[k - 1][2]);
+  return m >= 1000 ? `🚕 在臺北開了 ${(m / 1000).toFixed(2)} 公里` : `🚕 在臺北開了 ${Math.round(m)} 公尺`;
+}
 function regLegs(r) { return (r.full ? [0] : []).concat(r.pend); }
 function openRaceEnd() {
   const r = S.race, done = r.splits.length;
@@ -1235,13 +1435,14 @@ function openRaceEnd() {
     if (isPb) board.savePersonalBest(RACE.id, r.ms);
     const notes = [isPb ? (pb ? `🎉 個人新紀錄！比之前快 ${((pb - r.ms) / 1000).toFixed(2)} 秒` : '🎉 第一次完賽！') : `個人最佳 ${fmtTime(pb)}`];
     if (r.vs) notes.push(r.ms < r.vs.ms ? `🏆 你贏了 ${r.vs.i}（${fmtTime(r.vs.ms)}）！` : `差 ${r.vs.i} ${((r.ms - r.vs.ms) / 1000).toFixed(2)} 秒，再一次？`);
+    notes.push(driven(r));
     $('reKicker').textContent = '🏁 2033 外送王・全部送達';
     $('reTime').textContent = fmtTime(r.ms);
     $('reNote').textContent = notes.join('　');
   } else {
     $('reKicker').textContent = `🏁 2033 外送王・送了 ${done} 單`;
     $('reTime').textContent = fmtTime(r.splits[done - 1]);
-    $('reNote').textContent = '中途登錄只會上任務榜；全部送完才會上總榜。';
+    $('reNote').textContent = `${driven(r)}　中途登錄只會上任務榜；全部送完才會上總榜。`;
   }
   $('reSplits').innerHTML = r.splits.map((_, j) => {
     const st = RACE.stops[j], rec = r.pend.includes(j + 1);
@@ -1318,7 +1519,7 @@ const BOARD_ERR = { rate_limited: '登錄太頻繁了，等 15 秒再按一次',
 // what the leaderboard's route check found, in words (tools/leaderboard/supabase.sql submit_score details)
 function whyRefused(detail) {
   const m = /^speed (\d+) at (\d+)/.exec(detail || ''), st = /^stop (\d+)/.exec(detail || '');
-  if (m) return `這筆紀錄在第 ${(+m[2] / 1000).toFixed(1)} 秒時速 ${Math.round(+m[1] * 3.6)} km/h，超過小黃極速 ${Math.round(BOOST.max[3] * 3.6)} km/h，所以沒有上榜（成績留在這台裝置）`;
+  if (m) return `這筆紀錄在第 ${(+m[2] / 1000).toFixed(1)} 秒時速 ${kmh(+m[1])} km/h，超過小黃極速 ${BOOST.kmh[3]} km/h，所以沒有上榜（成績留在這台裝置）`;
   if (st) return `第 ${st[1]} 單的送達位置對不上，所以沒有上榜（成績留在這台裝置）`;
   return BOARD_ERR.implausible;
 }
@@ -1392,30 +1593,36 @@ function updateCar(dt) {
     else if (B.lv < 3) { B.t += dt; if (B.t >= BOOST.hold[B.lv] && c.v >= BOOST.max[B.lv] * 0.9) boostUp(B.lv + 1); }
   } else if (B.lv) { B.lv = 0; B.t = 0; }
   const max = BOOST.max[B.lv];
-  if (thr > 0) { if (c.v < max) c.v = Math.min(max, c.v + thr * BOOST.acc[B.lv] * dt); } else if (thr < 0) c.v += thr * (c.v > 0 ? 26 : 9) * dt;
+  if (thr > 0) { if (c.v < max) c.v = Math.min(max, c.v + thr * BOOST.acc[B.lv] * dt); } else if (thr < 0) c.v += thr * (c.v > 0 ? 78 : 27) * dt;
   if (k.Space) c.v *= Math.pow(0.08, dt);
   c.v *= Math.pow(thr === 0 ? 0.55 : 0.985, dt);
-  if (c.v > max) c.v = Math.max(max, c.v - (c.v - max) * Math.min(1, dt * 1.6) - 2 * dt);   // ease down after a boost instead of snapping
-  c.v = Math.max(c.v, -12);
+  if (c.v > max) c.v = Math.max(max, c.v - (c.v - max) * Math.min(1, dt * 1.6) - 6 * dt);   // ease down after a boost instead of snapping
+  c.v = Math.max(c.v, -36);
   c.steer += (st - c.steer) * Math.min(1, dt * 8);
-  c.h += c.steer * dt * 1.9 * THREE.MathUtils.clamp(c.v / 9, -1, 1);
-  const nx = c.x + Math.sin(c.h) * c.v * dt, nz = c.z + Math.cos(c.h) * c.v * dt;
-  const stuck = blocked(c.x, c.z);   // never trap the car if it is already inside a footprint
-  if (!stuck && blocked(nx, nz)) {
-    if (Math.abs(c.v) > 12) { toast('碰！小心駕駛 🚧', 1200); S.bst.shake = Math.max(S.bst.shake, Math.min(1, Math.abs(c.v) / 40)); }
-    B.lv = 0; B.t = 0;
-    c.v *= -0.25;
-    if (!blocked(nx, c.z)) c.x = nx; else if (!blocked(c.x, nz)) c.z = nz;
-  } else { c.x = nx; c.z = nz; }
+  c.h += c.steer * dt * 2.6 * THREE.MathUtils.clamp(c.v / 12, -1, 1);
+  // move in steps of at most 2.5 m so fast taxis can't skip through a building corner between frames
+  const steps = Math.max(1, Math.ceil(Math.abs(c.v) * dt / 2.5)), sdt = dt / steps;
+  for (let i = 0; i < steps; i++) {
+    const nx = c.x + Math.sin(c.h) * c.v * sdt, nz = c.z + Math.cos(c.h) * c.v * sdt;
+    const stuck = blocked(c.x, c.z);   // never trap the car if it is already inside a footprint
+    if (!stuck && blocked(nx, nz)) {
+      if (Math.abs(c.v) > 36) { toast('碰！小心駕駛 🚧', 1200); S.bst.shake = Math.max(S.bst.shake, Math.min(1, Math.abs(c.v) / 120)); }
+      B.lv = 0; B.t = 0;
+      c.v *= -0.25;
+      if (!blocked(nx, c.z)) c.x = nx; else if (!blocked(c.x, nz)) c.z = nz;
+      break;
+    }
+    c.x = nx; c.z = nz;
+  }
   taxi.position.set(c.x, 0.2, c.z); taxi.rotation.y = c.h;
-  taxi.rotation.z = -c.steer * Math.min(1, Math.abs(c.v) / 30) * 0.05;
-  for (const w of taxi.userData.wheels) w.rotation.x += c.v * dt / 0.36;
-  $('spd').textContent = Math.round(Math.abs(c.v) * 3.6);
+  taxi.rotation.z = -c.steer * Math.min(1, Math.abs(c.v) / 90) * 0.05;
+  for (const w of taxi.userData.wheels) w.rotation.x += c.v / SPEED_SCALE * dt / 0.36;
+  $('spd').textContent = kmh(c.v);
   // chase camera
   if (S.cam.userYawT > 0) S.cam.userYawT -= dt; else S.cam.yaw += (0 - S.cam.yaw) * Math.min(1, dt * 1.5);
   // boosting pulls the camera in low and leads it by the speed, so the taxi stays big on screen instead of running away
   const pitch = Math.max(0.08, S.cam.pitch - B.fx * 0.09), lead = c.v * 0.1;
-  const yaw = c.h + Math.PI + S.cam.yaw, dist = S.cam.dist + Math.abs(c.v) * 0.12 * (1 - B.fx * 0.65);
+  const yaw = c.h + Math.PI + S.cam.yaw, dist = S.cam.dist + Math.abs(c.v) * 0.05 * (1 - B.fx * 0.65);
   tmpV.set(c.x + Math.sin(yaw) * dist * Math.cos(pitch) + Math.sin(c.h) * lead, 2 + dist * Math.sin(pitch), c.z + Math.cos(yaw) * dist * Math.cos(pitch) + Math.cos(c.h) * lead);
   camera.position.sub(S.shakeOff);   // take last frame's shake out before smoothing
   camera.position.lerp(tmpV, 1 - Math.pow(0.0005, dt));
@@ -1625,6 +1832,7 @@ function loop() {
       if (S.race) updateRace(dt);
     }
     updateEnvironment(dt);
+    updateStreetTrees();
     updateTraffic(dt);
     updatePlanes(t);
     updateFutureLife(dt, t);
@@ -1659,6 +1867,7 @@ window.__api = {
   mission(i, cp = 0) { S.cpIndex = cp; setMission(i); },
   target: () => currentTarget(),
   blocked: (x, z) => blocked(x, z),
+  streetTrees: () => street && { total: [...street.grid.values()].reduce((a, l) => a + l.length, 0), drawn: street.trunk.count },
   camera,
   wheelColor(c) { taxi.userData.wheels.forEach(w => { w.material = w.material.clone(); w.material.color.setHex(c); }); },
   cutscene() { transformCutscene(); },                 // demo recording (tools/build/record_demo.mjs)

@@ -9,5 +9,5 @@ chars = sorted({c for c in text if ord(c) > 127} | {chr(c) for c in range(32, 12
 for src in sys.argv[1:]:
     w = re.search(r'-(\d{3})\.ttf$', src).group(1)
     out = root / 'lib' / 'fonts' / f'NotoSansTC-{w}.subset.ttf'
-    subprocess.run(['pyftsubset', src, f'--text-file={root / "tools" / "chars.txt"}', f'--output-file={out}', '--layout-features=*', '--no-hinting'], check=True)
+    subprocess.run(['pyftsubset', src, f'--text-file={root / "tools" / "chars.txt"}', f'--output-file={out}', '--layout-features=*', '--no-hinting', '--name-IDs=*'], check=True)
     print(out.name, out.stat().st_size, 'bytes')

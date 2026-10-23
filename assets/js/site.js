@@ -59,15 +59,7 @@
   const cover = $('#ytCover'), yt = $('#yt');
   if (cover && yt) cover.addEventListener('click', () => { yt.src = yt.dataset.src + '&autoplay=1'; cover.remove(); });
 
-  // credits from the Commons metadata file
-  fetch('assets/photos/credits.json').then(r => r.json()).then(list => {
-    const ul = $('#credits'); if (!ul) return;
-    ul.innerHTML = list.map(c => {
-      const name = c.file.split('/').pop();
-      const who = (c.artist || '').replace(/Unknown author/g, '').trim() || c.credit || '—';
-      return `<li><a href="${c.page}" target="_blank" rel="noopener">${name}</a>：${who}，${c.license || '見原始頁面'}（Wikimedia Commons）</li>`;
-    }).join('');
-  }).catch(() => { });
+  // photo credits are static HTML in index.html (tools/build/credits_html.py)
 
   // share
   const sb = $('#btnShare');

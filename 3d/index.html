@@ -44,7 +44,12 @@
         <button id="btnTour" class="btn" disabled>🎬 看導覽動畫</button>
         <a class="btn ghost" href="../index.html">← 回介紹網站</a>
       </div>
-      <p class="fine">非官方粉絲作品。地圖 © OpenStreetMap 貢獻者；園區配置為依市府新聞稿繪製之示意，非正式設計圖。</p>
+      <div class="intro-board" id="introBoard" hidden>
+        <p class="ib-title" id="ibTitle">🏆 外送王・全台總榜</p>
+        <ol class="race-board" id="ibList"></ol>
+        <a class="race-all" href="../rank/">看完整排行榜（總榜＋5 張任務榜）→</a>
+      </div>
+      <p class="fine">非官方粉絲作品。地圖 <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap 貢獻者</a>（ODbL）；照片：<a href="https://commons.wikimedia.org/wiki/File:%E8%94%A3%E8%90%AC%E5%AE%89%E5%B8%82%E9%95%B7_(cropped).jpg" target="_blank" rel="noopener">臺北市政府</a>，姓名標示，Wikimedia Commons（已裁切）；園區配置為依市府新聞稿繪製之示意，非正式設計圖。其他照片與授權見<a href="../index.html#sources">介紹網站</a>。</p>
     </div>
   </div>
 </section>
@@ -59,6 +64,7 @@
   </div>
   <div id="toolbar">
     <button class="tb race" id="tbRace" title="2033 外送王（G）">🏁 <b>外送賽</b></button>
+    <button class="tb" id="tbRank" title="排行榜（B）">🏆 <b>排行榜</b></button>
     <button class="tb" id="tbYear" title="切換 2026 / 2033（Y）">🕰️ <b>2026⇄2033</b></button>
     <button class="tb" id="tbMode" title="開車 / 空拍（F）">🚁 <b>空拍</b></button>
     <button class="tb" id="tbTime" title="黃昏 / 夜晚 / 白天（N）">🌙 <b>夜晚</b></button>
@@ -67,6 +73,7 @@
     <a class="tb" href="../index.html" title="回介紹網站">🏠 <b>首頁</b></a>
   </div>
   <div id="radar"><canvas id="radarC" width="260" height="260"></canvas><span class="n">N</span></div>
+  <a id="osmCredit" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap</a>
   <div id="speedo" class="panel"><b id="spd">0</b><small>km/h</small></div>
   <div id="boostMeter" class="panel" hidden><b id="bmTag">BOOST</b><div class="bm-bars"><i></i><i></i><i></i></div></div>
   <div id="boostPop" hidden><b></b><small></small></div>
@@ -89,7 +96,7 @@
 <!-- info card -->
 <section id="card" class="modal" hidden role="dialog" aria-modal="true">
   <div class="card">
-    <div class="card-photo" id="cardPhotoWrap"><img id="cardPhoto" alt=""></div>
+    <div class="card-photo" id="cardPhotoWrap"><img id="cardPhoto" alt=""><p class="ph-credit" id="cardCredit"></p></div>
     <div class="card-body">
       <p class="kicker" id="cardKicker">檢查點</p>
       <div class="card-big" id="cardBig"></div>
@@ -111,9 +118,9 @@
         <tr><th>視角</th><td>拖曳滑鼠旋轉、滾輪縮放</td></tr>
         <tr><th>快捷鍵</th><td><kbd>Y</kbd> 年份 <kbd>F</kbd> 開車/空拍 <kbd>N</kbd> 日夜 <kbd>T</kbd> 導覽 <kbd>R</kbd> 回到道路 <kbd>G</kbd> 外送賽</td></tr>
         <tr><th>外送賽</th><td>在 2033 年的園區裡依序送 5 單。每單都有任務榜：進前 10 名時計時暫停，可以馬上登錄，或繼續送、最後連同總榜一起登錄（輸入 3 個英文字母）</td></tr>
-        <tr><th>手機</th><td>左下搖桿控制方向；右側按鈕上升／下降；按住 ⚡ 三段加速</td></tr>
+        <tr><th>手機</th><td>左下搖桿轉方向（往上推也會前進）；右側 ⬆ 油門、⬇ 煞車／倒車；按住 ⚡ 直接三段加速。空拍時 ⬆⬇ 是升降</td></tr>
       </table>
-      <p class="fine">地圖資料：© OpenStreetMap 貢獻者（ODbL）。照片：Wikimedia Commons（作者與授權見介紹網站）。</p>
+      <p class="fine">地圖資料：<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap 貢獻者</a>（ODbL）。照片：臺北市政府、高雄市政府（姓名標示）、Solomon203（<a href="https://creativecommons.org/licenses/by-sa/4.0/deed.zh-hant" target="_blank" rel="noopener">CC BY-SA 4.0</a>），皆來自 Wikimedia Commons，每張的作者與授權見<a href="../index.html#sources">介紹網站</a>。</p>
       <button class="btn primary" id="helpOk">知道了</button>
     </div>
   </div>
@@ -122,7 +129,7 @@
 <!-- finale -->
 <section id="finale" class="modal" hidden>
   <div class="card finale">
-    <div class="card-photo"><img src="../assets/photos/chiang-stage.jpg" alt="臺北市長蔣萬安"></div>
+    <div class="card-photo"><img src="../assets/photos/chiang-stage.jpg" alt="臺北市長蔣萬安"><p class="ph-credit">照片：<a href="https://commons.wikimedia.org/wiki/File:Chiang_Wan-an_talking_on_the_main_stage_20221217a.jpg" target="_blank" rel="noopener">Solomon203</a>，<a href="https://creativecommons.org/licenses/by-sa/4.0/deed.zh-hant" target="_blank" rel="noopener">CC BY-SA 4.0</a>，Wikimedia Commons（已裁切）</p></div>
     <div class="card-body">
       <p class="kicker gold">MISSION PASSED</p>
       <h2 id="fTitle"></h2>
@@ -133,6 +140,23 @@
         <button class="btn primary" id="fFree">繼續自由探索</button>
         <a class="btn" href="../transcript/index.html">📜 記者會逐字稿</a>
         <a class="btn" href="../index.html">🏠 回介紹網站</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 2033 外送王 boards, any time (🏆) -->
+<section id="boardView" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="bvTitle">
+  <div class="card leg-card">
+    <div class="card-body">
+      <p class="kicker">🏆 2033 外送王排行榜</p>
+      <div class="race-tabs" id="bvTabs" role="tablist"></div>
+      <h3 class="race-bt" id="bvTitle"></h3>
+      <ol class="race-board" id="bvList"></ol>
+      <a class="race-all" id="bvAll" href="../rank/" target="_blank" rel="noopener">看前 20 名・完整排行榜 →</a>
+      <div class="intro-actions">
+        <button class="btn primary" id="bvOk">知道了</button>
+        <button class="btn race" id="bvRace">🏁 我也要挑戰</button>
       </div>
     </div>
   </div>

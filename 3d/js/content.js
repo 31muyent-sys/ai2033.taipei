@@ -8,6 +8,15 @@ export const PHOTO = {
   map: '../assets/photos/chiang-map.jpg',
   lee: '../assets/photos/lee-shih-chuan.jpg',
 };
+// author and licence shown with each photo (assets/photos/credits.json; the CC BY-SA licence asks for a link)
+export const PHOTO_CREDIT = {
+  portrait: '照片：<a href="https://commons.wikimedia.org/wiki/File:%E8%94%A3%E8%90%AC%E5%AE%89%E5%B8%82%E9%95%B7_(cropped).jpg" target="_blank" rel="noopener">臺北市政府</a>，姓名標示，Wikimedia Commons（已裁切）',
+  speech: '照片：<a href="https://commons.wikimedia.org/wiki/File:%E8%94%A3%E8%90%AC%E5%AE%89%E5%B8%82%E5%BA%9C%E5%9C%98%E9%9A%8A%E6%AD%A3%E5%BC%8F%E6%8E%A5%E6%A3%92%E4%B8%8A%E4%BB%BB_01.jpg" target="_blank" rel="noopener">臺北市政府</a>，姓名標示，Wikimedia Commons（已裁切）',
+  podium: '照片：<a href="https://commons.wikimedia.org/wiki/File:Chiang_Wan-an_20231108.jpg" target="_blank" rel="noopener">臺北市政府</a>，姓名標示，Wikimedia Commons（已裁切）',
+  stage: '照片：<a href="https://commons.wikimedia.org/wiki/File:Chiang_Wan-an_talking_on_the_main_stage_20221217a.jpg" target="_blank" rel="noopener">Solomon203</a>，<a href="https://creativecommons.org/licenses/by-sa/4.0/deed.zh-hant" target="_blank" rel="noopener">CC BY-SA 4.0</a>，Wikimedia Commons（已裁切）',
+  map: '照片：<a href="https://commons.wikimedia.org/wiki/File:%E8%94%A3%E5%B8%82%E9%95%B7%E6%8E%A5%E8%A6%8B%E6%BE%B3%E6%B4%B2%E8%BE%A6%E4%BA%8B%E8%99%95%E6%96%B0%E4%BB%BB%E4%BB%A3%E8%A1%A8%E9%A6%AE%E5%9C%8B%E6%96%8C_02.jpg" target="_blank" rel="noopener">臺北市政府秘書處媒體事務組</a>，姓名標示，Wikimedia Commons（已裁切）',
+  lee: '照片：<a href="https://commons.wikimedia.org/wiki/File:%E6%9D%8E%E5%9B%9B%E5%B7%9D%E5%89%AF%E5%B8%82%E9%95%B7.png" target="_blank" rel="noopener">高雄市政府</a>，姓名標示，Wikimedia Commons（已裁切）',
+};
 // campaign art hung on roadside T霸 and rooftop signs around the delivery course
 export const SIGN = { src: '../assets/signs/antidrug.jpg', aspect: 494 / 1057 };
 

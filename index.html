@@ -31,6 +31,7 @@
   <div class="wrap top-in">
     <a class="brand" href="#hero" aria-label="回到頂端"><span class="dot"></span>AI黃金世紀</a>
     <nav class="nav" aria-label="主選單">
+      <a href="#board">排行榜</a>
       <a href="#why">為什麼</a>
       <a href="#plan">300公頃</a>
       <a href="#compare">前後對比</a>
@@ -85,6 +86,44 @@
     </ul>
   </div>
 </section>
+
+<!-- LIVE LEADERBOARD -->
+<section class="sec board-sec" id="board" aria-labelledby="boardH">
+  <div class="wrap board-in">
+    <div class="board-text">
+      <p class="kicker">2033 外送王・全台即時排行榜</p>
+      <h2 class="h2" id="boardH">開小黃送 5 單，<span class="mark">誰最快？</span></h2>
+      <p class="lead">在 2033 年的臺北AI園區送鮮奶、便當、珍奶、鳳梨酥、鹹酥雞。總榜比 5 單全送完的時間，每一單另有自己的任務榜。</p>
+      <p class="board-cta"><a class="btn gold xl" href="3d/index.html?race">🏁 我也要挑戰</a><a class="btn xl" href="rank/">🏆 看完整排行榜</a></p>
+    </div>
+    <div class="board-card">
+      <h3>總榜 前 5 名</h3>
+      <ol class="hb-list" id="hbTotal"><li class="empty">載入排行榜中…</li></ol>
+      <h3>各單最快</h3>
+      <ul class="hb-legs" id="hbLegs"></ul>
+      <p class="hb-src" id="hbSrc"></p>
+    </div>
+  </div>
+</section>
+<script type="module">
+  // the live boards for people who haven't played yet (same data as /rank/)
+  import * as board from './3d/js/board.js';
+  import { RACE } from './3d/js/content.js';
+  const $ = (id) => document.getElementById(id), NST = RACE.stops.length;
+  const fmt = (ms) => (ms >= 60000 ? `${Math.floor(ms / 60000)}:${((ms % 60000) / 1000).toFixed(2).padStart(5, '0')}` : `${(ms / 1000).toFixed(2)} 秒`);
+  const row = (r, k) => `<li><span class="rk">${k + 1}</span><b>${r.i}</b><span class="t">${fmt(r.ms)}</span></li>`;
+  async function load() {
+    const b = await board.boards(RACE.id, NST, 5);
+    $('hbTotal').innerHTML = b.total.length ? b.total.map(row).join('') : '<li class="empty">還沒有人送完 5 單，搶第一！</li>';
+    $('hbLegs').innerHTML = RACE.stops.map((st, k) => {
+      const top = b.legs[k][0];
+      return `<li><a href="rank/?leg=${k + 1}"><span>${st.icon} 第 ${k + 1} 單 ${st.item}</span>${top ? `<b>${top.i}</b><span class="t">${fmt(top.ms)}</span>` : '<span class="t">還沒有人</span>'}</a></li>`;
+    }).join('');
+    $('hbSrc').textContent = b.shared ? `全台即時・更新於 ${new Date().toLocaleTimeString('zh-TW', { hour12: false })}` : '暫時連不上全台排行榜，先顯示這台裝置的紀錄';
+  }
+  load();
+  setInterval(() => { if (document.visibilityState === 'visible') load(); }, 60000);
+</script>
 
 <!-- VIDEO -->
 <section class="sec dark" id="video">
@@ -380,8 +419,23 @@
       <li><a href="https://www.myhousing.com.tw/n/n01/north-taiwan/taipei-city-estate/298304/" target="_blank" rel="noopener">住展雜誌：松山機場要搬了？（含交通部回應）</a></li>
     </ul>
     <h2 class="h3">照片與地圖授權</h2>
-    <ul class="credits" id="credits"></ul>
-    <p class="note">地圖資料 © OpenStreetMap 貢獻者（ODbL）。3D 場景以 three.js 製作。本站為非官方整理，與臺北市政府無隸屬關係。</p>
+    <ul class="credits" id="credits">
+      <li><a href="https://commons.wikimedia.org/wiki/File:%E8%94%A3%E8%90%AC%E5%AE%89%E5%B8%82%E9%95%B7.jpg" target="_blank" rel="noopener">蔣萬安市長.jpg</a>（本站 chiang-portrait.jpg）：臺北市政府，姓名標示，Wikimedia Commons。本站使用縮圖／裁切版本。</li>
+      <li><a href="https://commons.wikimedia.org/wiki/File:%E8%94%A3%E8%90%AC%E5%AE%89%E5%B8%82%E9%95%B7_(cropped).jpg" target="_blank" rel="noopener">蔣萬安市長 (cropped).jpg</a>（本站 chiang-portrait-crop.jpg）：臺北市政府，姓名標示，Wikimedia Commons。本站使用縮圖／裁切版本。</li>
+      <li><a href="https://commons.wikimedia.org/wiki/File:Chiang_Wan-an_20231108.jpg" target="_blank" rel="noopener">Chiang Wan-an 20231108.jpg</a>（本站 chiang-council.jpg）：臺北市政府，姓名標示，Wikimedia Commons。本站使用縮圖／裁切版本。</li>
+      <li><a href="https://commons.wikimedia.org/wiki/File:%E8%94%A3%E8%90%AC%E5%AE%89%E5%B8%82%E5%BA%9C%E5%9C%98%E9%9A%8A%E6%AD%A3%E5%BC%8F%E6%8E%A5%E6%A3%92%E4%B8%8A%E4%BB%BB_01.jpg" target="_blank" rel="noopener">蔣萬安市府團隊正式接棒上任 01.jpg</a>（本站 chiang-speech.jpg）：臺北市政府，姓名標示，Wikimedia Commons。本站使用縮圖／裁切版本。</li>
+      <li><a href="https://commons.wikimedia.org/wiki/File:Chiang_Wan-an_talking_on_the_main_stage_20221217a.jpg" target="_blank" rel="noopener">Chiang Wan-an talking on the main stage 20221217a.jpg</a>（本站 chiang-stage.jpg）：Solomon203，<a href="https://creativecommons.org/licenses/by-sa/4.0/deed.zh-hant" target="_blank" rel="noopener">CC BY-SA 4.0</a>，Wikimedia Commons。本站使用縮圖／裁切版本。</li>
+      <li><a href="https://commons.wikimedia.org/wiki/File:Chiang_Wan-an_20240106_01.jpg" target="_blank" rel="noopener">Chiang Wan-an 20240106 01.jpg</a>（本站 chiang-rally.jpg）：曾 成訓，<a href="https://creativecommons.org/licenses/by/2.0/deed.zh-hant" target="_blank" rel="noopener">CC BY 2.0</a>，Wikimedia Commons。本站使用縮圖／裁切版本。</li>
+      <li><a href="https://commons.wikimedia.org/wiki/File:Mayor_of_Taipei_Chiang_Wan-an_2024-09-20.jpg" target="_blank" rel="noopener">Mayor of Taipei Chiang Wan-an 2024-09-20.jpg</a>（本站 chiang-podium.jpg）：立法院，姓名標示，Wikimedia Commons。本站使用縮圖／裁切版本。</li>
+      <li><a href="https://commons.wikimedia.org/wiki/File:%E8%94%A3%E5%B8%82%E9%95%B7%E6%8E%A5%E8%A6%8B%E6%BE%B3%E6%B4%B2%E8%BE%A6%E4%BA%8B%E8%99%95%E6%96%B0%E4%BB%BB%E4%BB%A3%E8%A1%A8%E9%A6%AE%E5%9C%8B%E6%96%8C_02.jpg" target="_blank" rel="noopener">蔣市長接見澳洲辦事處新任代表馮國斌 02.jpg</a>（本站 chiang-map.jpg）：臺北市政府秘書處媒體事務組，姓名標示，Wikimedia Commons。本站使用縮圖／裁切版本。</li>
+      <li><a href="https://commons.wikimedia.org/wiki/File:%E8%94%A3%E8%90%AC%E5%AE%89%E5%B8%82%E9%95%B7%E8%88%87%E9%9F%93%E5%9C%8B%E9%A7%90%E8%87%BA%E4%BB%A3%E8%A1%A8%E6%9D%8E%E6%AE%B7%E9%8E%AC%E7%9B%B8%E8%A6%8B%E6%AD%A1_01.jpg" target="_blank" rel="noopener">蔣萬安市長與韓國駐臺代表李殷鎬相見歡 01.jpg</a>（本站 chiang-aerial.jpg）：臺北市政府秘書處媒體事務組，姓名標示，Wikimedia Commons。本站使用縮圖／裁切版本。</li>
+      <li><a href="https://commons.wikimedia.org/wiki/File:%E6%9D%8E%E5%9B%9B%E5%B7%9D%E5%89%AF%E5%B8%82%E9%95%B7.png" target="_blank" rel="noopener">李四川副市長.png</a>（本站 lee-shih-chuan.jpg）：高雄市政府，姓名標示，Wikimedia Commons。本站使用縮圖／裁切版本。</li>
+      <li><a href="https://commons.wikimedia.org/wiki/File:%2720210501_Taipei_Night_Skyline.jpg" target="_blank" rel="noopener">&#x27;20210501 Taipei Night Skyline.jpg</a>（本站 taipei-skyline-dusk.jpg）：毛貓大少爺，<a href="https://creativecommons.org/licenses/by-sa/2.0/deed.zh-hant" target="_blank" rel="noopener">CC BY-SA 2.0</a>，Wikimedia Commons。本站使用縮圖／裁切版本。</li>
+      <li><a href="https://commons.wikimedia.org/wiki/File:20221003_Taipei_Night_Skyline_(cropped).jpg" target="_blank" rel="noopener">20221003 Taipei Night Skyline (cropped).jpg</a>（本站 taipei-skyline-night.jpg）：毛貓大少爺，<a href="https://creativecommons.org/licenses/by-sa/2.0/deed.zh-hant" target="_blank" rel="noopener">CC BY-SA 2.0</a>，Wikimedia Commons。本站使用縮圖／裁切版本。</li>
+      <li><a href="https://commons.wikimedia.org/wiki/File:20150511_Taipei_night_skyline_(2).jpg" target="_blank" rel="noopener">20150511 Taipei night skyline (2).jpg</a>（本站 taipei-skyline-blue.jpg）：ynes95，<a href="https://creativecommons.org/licenses/by-sa/2.0/deed.zh-hant" target="_blank" rel="noopener">CC BY-SA 2.0</a>，Wikimedia Commons。本站使用縮圖／裁切版本。</li>
+      <li><a href="https://commons.wikimedia.org/wiki/File:2010_07_20690_6678_Da%27an_District,_Taipei,_Daan_Park,_Taiwan.JPG" target="_blank" rel="noopener">2010 07 20690 6678 Da&#x27;an District, Taipei, Daan Park, Taiwan.JPG</a>（本站 daan-park.jpg）：Lord Koxinga，<a href="https://creativecommons.org/licenses/by-sa/3.0/deed.zh-hant" target="_blank" rel="noopener">CC BY-SA 3.0</a>，Wikimedia Commons。本站使用縮圖／裁切版本。</li>
+    </ul>
+    <p class="note">地圖資料 <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap 貢獻者</a>，以 <a href="https://opendatacommons.org/licenses/odbl/" target="_blank" rel="noopener">ODbL</a> 授權；網站上的 3D 畫面與示意圖都是用這份地圖資料製作的。3D 場景以 three.js（MIT 授權）製作。其他開源元件與授權見 <a href="https://github.com/dAAAb/ai2033.taipei/blob/claude/taipei-ai-park-interactive-wsso9d/CREDITS.md" target="_blank" rel="noopener">CREDITS.md</a>。本站為非官方整理，與臺北市政府無隸屬關係。</p>
   </div>
 </section>
 </main>

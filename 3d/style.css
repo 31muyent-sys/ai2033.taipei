@@ -59,6 +59,10 @@ blockquote{margin:12px 0;padding:12px 16px;border-left:5px solid var(--gold);bac
 .tb:hover{border-color:var(--gold)}
 #radar{position:absolute;left:16px;bottom:16px;width:220px;height:220px;border-radius:50%;overflow:hidden;border:4px solid rgba(0,0,0,.65);box-shadow:0 0 0 2px rgba(255,255,255,.25),0 10px 30px rgba(0,0,0,.5);background:#1c2532}
 #radar canvas{width:100%;height:100%}
+#osmCredit{position:absolute;left:20px;bottom:calc(2px + env(safe-area-inset-bottom,0px));z-index:2;font-size:11px;color:rgba(255,255,255,.8);text-decoration:none;text-shadow:0 1px 2px #000;pointer-events:auto}
+.card-photo{position:relative}
+.ph-credit{position:absolute;left:0;right:0;bottom:0;margin:0;padding:18px 10px 6px;font-size:11px;line-height:1.4;color:#e7ecf3;background:linear-gradient(transparent,rgba(0,0,0,.75))}
+.ph-credit a{color:#fff}
 #radar .n{position:absolute;left:50%;top:6px;transform:translateX(-50%);font-weight:900;font-size:16px;background:#000;border-radius:50%;width:24px;height:24px;line-height:24px;text-align:center}
 #speedo{position:absolute;right:16px;bottom:16px;padding:8px 16px;text-align:right}
 #speedo b{font-size:44px;color:#fff;font-variant-numeric:tabular-nums}
@@ -156,6 +160,10 @@ blockquote{margin:12px 0;padding:12px 16px;border-left:5px solid var(--gold);bac
 .race-board li.me{background:rgba(255,200,61,.24);box-shadow:inset 0 0 0 1px var(--gold)}
 .race-board li.empty{display:block;color:var(--muted);font-size:17px}
 .race-all{display:inline-block;margin:-6px 0 14px;color:var(--gold2);font-weight:700;font-size:16px}
+.intro-board{margin:18px 0 0;padding:14px 16px 4px;border:1px solid rgba(255,200,61,.45);border-radius:16px;background:rgba(0,0,0,.28);max-width:460px}
+.intro-board .ib-title{margin:0 0 8px;font-weight:900;font-size:19px;color:var(--gold)}
+.intro-board .race-board{margin-bottom:10px}
+.intro-board .race-board li{font-size:18px;padding:4px 10px}
 .race-share{display:grid;gap:10px;margin-bottom:14px}
 .sh-links{display:flex;flex-wrap:wrap;gap:8px}
 .sh-links a{padding:8px 14px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.08);color:#fff;text-decoration:none;font-weight:700;font-size:16px}
@@ -193,6 +201,10 @@ blockquote{margin:12px 0;padding:12px 16px;border-left:5px solid var(--gold);bac
   :root{--fs:18px}
   .intro-grid{grid-template-columns:1fr;gap:18px}
   .intro-photo{max-width:240px;margin:0 auto}
+  /* phones: loading bar and the live board first, the story below them */
+  .intro-text{display:flex;flex-direction:column}
+  .intro-text>.load{order:1}.intro-text>.intro-board{order:2;margin-top:0}.intro-text>.intro-actions{order:3}
+  .intro-text>.lead{order:4;margin-top:16px}.intro-text>blockquote{order:5}.intro-text>.fine{order:6}
   .intro-photo img{aspect-ratio:1/1}
   .card{grid-template-columns:1fr}
   .card-photo img{min-height:0;max-height:170px}
@@ -204,11 +216,12 @@ blockquote{margin:12px 0;padding:12px 16px;border-left:5px solid var(--gold);bac
   .m-title{font-size:18px}.m-hint{font-size:15px;line-height:1.45}
   #radar{left:auto;right:12px;top:12px;bottom:auto;width:112px;height:112px;border-width:3px}
   #radar .n{width:20px;height:20px;line-height:20px;font-size:13px}
-  #stats{top:134px;right:12px;bottom:auto;min-width:0;padding:6px 12px}
+  #osmCredit{left:auto;right:14px;bottom:auto;top:127px;font-size:10px}
+  #stats{top:146px;right:12px;bottom:auto;min-width:0;padding:6px 12px}
   .year{font-size:28px}.money{font-size:14px}.srow{display:none}
   #speedo{display:none}
-  #toolbar{bottom:10px;gap:6px}
-  .tb{padding:10px 11px;font-size:15px}
+  #toolbar{bottom:10px;gap:5px}
+  .tb{padding:10px 9px;font-size:15px}
   .tb b{display:none}
   .lbl{font-size:14px}.lbl.zone,.lbl.cp{font-size:15px}
   #stick{left:16px;bottom:80px;width:136px;height:136px}
@@ -232,4 +245,7 @@ blockquote{margin:12px 0;padding:12px 16px;border-left:5px solid var(--gold);bac
   .m-peek{font-size:13px}
   .m-peek ol{display:none}
   .leg-card .race-time{font-size:46px}
+  /* racing on a phone: the order card grows a timer, so drop what would sit on top of it */
+  body.racing #stats,body.racing .lbl.zone{display:none !important}   /* labels set display inline */
 }
+.ctx-lost{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:60;max-width:calc(100vw - 32px);padding:18px 22px;border-radius:16px;border:2px solid var(--gold);background:#0d121c;color:#fff;font:inherit;font-size:19px;font-weight:700;line-height:1.5;cursor:pointer}

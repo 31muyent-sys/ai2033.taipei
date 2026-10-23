@@ -23,6 +23,7 @@ alter table public.race_scores add constraint race_scores_ms_check check (ms bet
 drop index if exists public.race_scores_rank;
 create index if not exists race_scores_board on public.race_scores (course, leg, ms, created_at);
 create index if not exists race_scores_client on public.race_scores (client, created_at desc);
+create index if not exists race_scores_splits on public.race_scores (course, splits);   -- replay check in submit_score
 alter table public.race_scores enable row level security;   -- no policies: no direct reads or writes
 revoke all on public.race_scores from public;
 
@@ -78,8 +79,10 @@ begin
   if p_initials = any (string_to_array('ASS CUM COK CNT DIC DIK FAG FCK FUC FUK FUQ FKU JIZ KKK KYS NGR NIG SEX SHT TIT VAG XXX CNM NMB TMD MLB GAN', ' ')) then
     raise exception 'blocked_initials';
   end if;
-  -- one registration per client every 15 seconds
-  who := md5(coalesce(current_setting('request.headers', true)::json->>'x-forwarded-for', '') || '|' || p_course);
+  -- one registration per client every 15 seconds. cf-connecting-ip is set by Cloudflare in front of Supabase and
+  -- can't be supplied by the caller; x-forwarded-for can be partly, so it's only the fallback
+  who := md5(coalesce(current_setting('request.headers', true)::json->>'cf-connecting-ip',
+                      current_setting('request.headers', true)::json->>'x-forwarded-for', '') || '|' || p_course);
   if exists (select 1 from public.race_scores where client = who and created_at > now() - interval '15 seconds') then
     raise exception 'rate_limited';
   end if;
@@ -123,6 +126,10 @@ begin
     end if;
   end loop;
   if k <> ns or (cur->>0)::int <> p_splits[ns] then raise exception 'implausible' using detail = 'route'; end if;
+  -- a run is registered once: the same split times again are a replay of someone's route samples under other initials
+  if exists (select 1 from public.race_scores where course = p_course and splits = p_splits) then
+    raise exception 'duplicate';
+  end if;
 
   foreach lg in array p_legs loop
     lms := case when lg = 0 then p_splits[nstops] else p_splits[lg] - coalesce(p_splits[lg - 1], 0) end;

@@ -10,7 +10,7 @@ import {
   U, flatToPts, ringsOf, flatPolys, ribbons, pointInRing, signedArea, patchBuildingMaterial, patchRoadMaterial, waterMaterial,
   buildBuildings, makeTreeGeometries, makePlane, makeTaxi, makeTaipei101, makeGrandHotel, makeFerrisWheel, mergeGeometries,
 } from './city.js';
-import { PHOTO, SIGN, INTRO, MISSIONS, CHECKPOINTS, FINALE, STATS, TOUR, RACE } from './content.js';
+import { PHOTO, PHOTO_CREDIT, SIGN, INTRO, MISSIONS, CHECKPOINTS, FINALE, STATS, TOUR, RACE } from './content.js';
 import * as board from './board.js';
 
 const $ = (id) => document.getElementById(id);
@@ -28,6 +28,16 @@ try {
   throw e;
 }
 renderer.setPixelRatio(QUALITY.pixelRatio);
+// phones (iOS in-app browsers especially) can drop the WebGL context when the app goes to the background:
+// say what happened and offer a reload instead of leaving a black screen
+canvas.addEventListener('webglcontextlost', (e) => {
+  e.preventDefault();
+  if ($('ctxLost')) return;
+  const n = document.createElement('button'); n.id = 'ctxLost'; n.className = 'ctx-lost';
+  n.textContent = '畫面中斷了（手機切換 App 時偶爾會這樣）・點這裡重新載入';
+  n.onclick = () => location.reload(); document.body.appendChild(n);
+});
+canvas.addEventListener('webglcontextrestored', () => { const n = $('ctxLost'); if (n) n.remove(); });
 renderer.setSize(innerWidth, innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 0.95;
@@ -933,6 +943,7 @@ function blocked(x, z) {
 // ---------------- input ----------------
 addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT') return;
+  if (!$('boardView').hidden) { if (['Escape', 'Enter', 'KeyB'].includes(e.code)) { e.preventDefault(); closeBoardView(); } return; }
   if (!$('raceEnd').hidden) { initialsKey(e); return; }
   if (!$('legUp').hidden) { legUpKey(e); return; }
   S.keys[e.code] = true;
@@ -943,6 +954,7 @@ addEventListener('keydown', (e) => {
   if (e.code === 'KeyN') cycleTime();
   if (e.code === 'KeyT') startTour();
   if (e.code === 'KeyH') showHelp();
+  if (e.code === 'KeyB') openBoardView();
   if (e.code === 'KeyR') resetCar();
   if (['ArrowUp', 'ArrowDown', 'Space'].includes(e.code)) e.preventDefault();
 });
@@ -1034,7 +1046,7 @@ function openCard(cp) {
   $('cardKicker').textContent = `檢查點 ${S.cpIndex} / ${CHECKPOINTS.length}`;
   $('cardBig').textContent = cp.big; $('cardTitle').textContent = cp.title; $('cardText').innerHTML = cp.body;
   const wrap = $('cardPhotoWrap'), card = $('card').querySelector('.card');
-  if (cp.photo) { $('cardPhoto').src = PHOTO[cp.photo]; $('cardPhoto').alt = '臺北市長蔣萬安'; wrap.classList.remove('none'); card.classList.remove('nophoto'); }
+  if (cp.photo) { $('cardPhoto').src = PHOTO[cp.photo]; $('cardPhoto').alt = '臺北市長蔣萬安'; $('cardCredit').innerHTML = PHOTO_CREDIT[cp.photo] || ''; wrap.classList.remove('none'); card.classList.remove('nophoto'); }
   else { wrap.classList.add('none'); card.classList.add('nophoto'); }
   $('card').hidden = false;
 }
@@ -1318,10 +1330,11 @@ function startRace() {
   camera.position.set(x - Math.sin(c.h) * 40, 26, z - Math.cos(c.h) * 40);
   const prev = S.race ? S.race.prevMission : S.mission;
   const r = S.race = { phase: 'count', t: -3.4, stop: 0, splits: [], trace: [], next: 0, shown: null, vs: RACE_VS, prevMission: prev, pend: [], boards: null };
-  board.boards(RACE.id, NST).then(b => { r.boards = b; });
+  board.boards(RACE.id, NST).then(b => { r.boards = b; seenBoards = b; });
   $('mTimer').hidden = false; $('mTime').textContent = fmtTime(0); $('mLeg').textContent = ''; $('mTimer').classList.remove('done');
   $('mPeek').hidden = true;
   $('tbRace').innerHTML = '✕ <b>退出比賽</b>';
+  document.body.classList.add('racing');
   showRaceStop();
 }
 function showRaceStop() {
@@ -1332,12 +1345,16 @@ function showRaceStop() {
   RACE.stops.forEach((_, k) => { const d = document.createElement('i'); if (k < r.stop) d.className = r.pend.includes(k + 1) ? 'on rec' : 'on'; prog.appendChild(d); });
   updateCheckpoint();
 }
+const countdownLine = (r) => {
+  const b = r.boards || seenBoards, top = b && b.total[0];
+  return top ? `${b.shared ? '全台' : '這台裝置'}第一：${top.i} ${fmtTime(top.ms)}・🏆 看排行榜` : `${NST} 單外送，每單都有任務榜`;
+};
 function updateRace(dt) {
   const r = S.race;
   if (r.phase === 'count') {
     r.t += dt;
     const n = Math.ceil(-r.t);
-    if (n !== r.shown && n >= 1 && n <= 3) { r.shown = n; banner(String(n), n === 3 ? (r.vs ? `挑戰 ${r.vs.i} 的 ${fmtTime(r.vs.ms)}` : `${NST} 單外送，每單都有任務榜`) : '', 950); }
+    if (n !== r.shown && n >= 1 && n <= 3) { r.shown = n; banner(String(n), n === 3 ? (r.vs ? `挑戰 ${r.vs.i} 的 ${fmtTime(r.vs.ms)}` : countdownLine(r)) : '', 950); }
     if (r.t >= 0) { r.phase = 'run'; r.t = 0; banner('GO!', '🛵 出發送餐！', 1100); }
     return;
   }
@@ -1404,7 +1421,7 @@ function leaveRace(force) {
   const r = S.race; if (!r) return;
   // leaving mid-run with orders that made their boards: offer to register them first
   if (!force && r.phase === 'run' && r.pend.length) { $('legUp').hidden = true; S.paused = false; endRun(false); return; }
-  S.race = null; S.paused = false;
+  S.race = null; S.paused = false; document.body.classList.remove('racing');
   ['raceEnd', 'legUp'].forEach(id => $(id).hidden = true);
   $('mTimer').hidden = true; $('mPeek').hidden = true; $('tbRace').innerHTML = '🏁 <b>外送賽</b>';
   S.cpIndex = Math.min(S.cpIndex, CHECKPOINTS.length - 1);
@@ -1515,7 +1532,7 @@ $('reInit').querySelectorAll('.slot').forEach((el, k) => {
     ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => b.addEventListener(ev, stop));
   }
 });
-const BOARD_ERR = { rate_limited: '登錄太頻繁了，等 15 秒再按一次', implausible: '這筆紀錄沒有通過排行榜檢查，所以沒有上榜', blocked_initials: '這組字母不能用，換一組吧', bad_initials: '請輸入 3 個英文字母', bad_course: '路線版本不同，請重新整理頁面' };
+const BOARD_ERR = { rate_limited: '登錄太頻繁了，等 15 秒再按一次', implausible: '這筆紀錄沒有通過排行榜檢查，所以沒有上榜', blocked_initials: '這組字母不能用，換一組吧', bad_initials: '請輸入 3 個英文字母', bad_course: '路線版本不同，請重新整理頁面', duplicate: '這一趟已經登錄過了（同一趟只能登錄一次）' };
 // what the leaderboard's route check found, in words (tools/leaderboard/supabase.sql submit_score details)
 function whyRefused(detail) {
   const m = /^speed (\d+) at (\d+)/.exec(detail || ''), st = /^stop (\d+)/.exec(detail || '');
@@ -1579,12 +1596,47 @@ $('shCopy').onclick = () => {
   try { navigator.clipboard.writeText(t.value).then(done, pick); } catch { pick(); }
 };
 
+// the boards for people who haven't played yet: on the loading screen, in the countdown and behind 🏆
+let seenBoards = null;
+const BV = { tab: 0, resume: false };
+function loadBoards() { return board.boards(RACE.id, NST).then(b => { seenBoards = b; drawIntroBoard(); if (!$('boardView').hidden) drawBoardView(); return b; }); }
+function drawIntroBoard() {
+  const b = seenBoards; if (!b) return;
+  $('ibTitle').textContent = `🏆 外送王・${b.shared ? '全台' : '這台裝置'}總榜`;
+  $('ibList').innerHTML = boardRows(b.total, null, 5);
+  $('introBoard').hidden = false;
+}
+function openBoardView() {
+  if (!$('boardView').hidden) return;
+  BV.resume = !S.paused; S.paused = true; S.keys = {};   // the race clock stops while the boards are open
+  if (S.race && S.race.phase === 'run') BV.tab = S.race.stop < NST ? S.race.stop + 1 : 0;
+  $('bvRace').hidden = !!(S.race && S.race.phase !== 'done');
+  $('bvOk').textContent = S.race && S.race.phase === 'run' ? '▶ 繼續比賽' : '知道了';
+  $('boardView').hidden = false; drawBoardView(); loadBoards();
+}
+function closeBoardView() { $('boardView').hidden = true; if (BV.resume) S.paused = false; BV.resume = false; S.keys = {}; }
+function drawBoardView() {
+  const b = seenBoards, leg = BV.tab, st = RACE.stops[leg - 1];
+  $('bvTabs').innerHTML = [0, ...RACE.stops.map((_, k) => k + 1)].map(l =>
+    `<button data-leg="${l}" class="${l === leg ? 'on' : ''}">${l === 0 ? '總榜' : `${RACE.stops[l - 1].icon} ${l}`}</button>`).join('');
+  $('bvTabs').querySelectorAll('button').forEach(x => x.onclick = () => { BV.tab = +x.dataset.leg; drawBoardView(); });
+  $('bvTitle').textContent = `${b && !b.shared ? '這台裝置' : '全台'}・${leg === 0 ? '總榜（5 單全送完）' : `第 ${leg} 單 ${st.icon} ${st.item} → ${st.to}`}`;
+  $('bvAll').href = leg ? `../rank/?leg=${leg}` : '../rank/';
+  $('bvList').innerHTML = b ? boardRows(leg === 0 ? b.total : b.legs[leg - 1], null) : '<li class="empty">載入排行榜中…</li>';
+}
+$('tbRank').onclick = () => openBoardView();
+$('bvOk').onclick = () => closeBoardView();
+$('bvRace').onclick = () => { closeBoardView(); startRace(); };
+$('boardView').addEventListener('click', (e) => { if (e.target === $('boardView')) closeBoardView(); });
+
 // ---------------- per-frame updates ----------------
 function updateCar(dt) {
   const k = S.keys, c = S.car;
-  let thr = (k.KeyW || k.ArrowUp ? 1 : 0) - (k.KeyS || k.ArrowDown ? 1 : 0) + S.joy.y;
+  // phones: the stick steers (pushing it up also drives), ⬆ is the gas, ⬇ brakes then reverses, and ⚡ on its own drives too
+  let thr = (k.KeyW || k.ArrowUp ? 1 : 0) - (k.KeyS || k.ArrowDown ? 1 : 0) + S.joy.y + S.up - S.down;
   let st = (k.KeyA || k.ArrowLeft ? 1 : 0) - (k.KeyD || k.ArrowRight ? 1 : 0) - S.joy.x;
   thr = THREE.MathUtils.clamp(thr, -1, 1); st = THREE.MathUtils.clamp(st, -1, 1);
+  if (S.boost && thr <= 0 && !S.down) thr = 1;
   if (S.race && S.race.phase !== 'run') { thr = st = 0; c.v = 0; }   // countdown / finished: wait at the line
   // boost: holding Shift / ⚡ with the throttle on climbs the stages; letting go or braking drops back
   const B = S.bst, want = (k.ShiftLeft || k.ShiftRight || S.boost) && thr > 0 && !k.Space;
@@ -1854,6 +1906,7 @@ addEventListener('resize', () => {
 });
 
 loop();
+loadBoards();
 build().catch(err => { console.error(err); $('loadText').textContent = '載入失敗：' + err.message + '（請重新整理）'; });
 window.__S = S; // debug handle
 // scripted camera for screenshots / renders (used by tools/build/render.mjs)

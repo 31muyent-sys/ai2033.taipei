@@ -115,6 +115,7 @@ dAAAb 想起先前看過的「GTA 台北」互動作品，也想到 AI 製作 3D
 | 10/24 19:15 | Codex 協作補強輸入驗證與資料權限、分享卡來源、依賴版本、素材授權、隱私與安全文件 | [`8ecb1fb`](https://github.com/dAAAb/ai2033.taipei/commit/8ecb1fb) |
 | 19:54 | dAAAb 確認採 MIT；加入原創程式與技術文件授權，明列第三方與媒體素材的適用範圍 | [`cf13de6`](https://github.com/dAAAb/ai2033.taipei/commit/cf13de6) |
 | 10/25 00:51 | 合併 PR #10（公開發布檢查、MIT 授權與本篇初稿） | [`a1b6261`](https://github.com/dAAAb/ai2033.taipei/commit/a1b6261) |
+| 10/25 01:16 | 全站裝上 Google Analytics 4（遊戲另記開始、送完、登錄、分享、看榜，不送代號），隱私頁同步說明；刪除會抓回新聞全文、需要 YouTube 登入 cookie 的兩個資料擷取流程 | [`f747a9c`](https://github.com/dAAAb/ai2033.taipei/commit/f747a9c) |
 
 ## 最初的需求（專案中保存的版本）
 

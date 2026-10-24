@@ -27,6 +27,8 @@
 ## 本機測試
 
 ```bash
-cd og && npm install
-node tools/static-card.mjs run /tmp/card.png   # 單張卡片（kind: run / board / rank / site）
+cd og && npm ci
+node tools/static-card.mjs rank /tmp/card.png   # 靜態卡片（kind: board / rank / site）
 ```
+
+安全設定：分享卡一律使用 `https://go.ai2033.taipei` 作為標準來源；自行部署可設 `SHARE_ORIGIN`，不從使用者提供的 Host／X-Forwarded-Host 產生預覽網址。只接受 GET／HEAD，並限制請求網址長度。

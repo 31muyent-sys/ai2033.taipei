@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Archive the text of official / news pages about the 2026-10-08 announcement for fact-checking."""
+"""Index source links; retain only the official release needed by the transcript builder."""
 import json, os, re, time, requests, trafilatura
 
 URLS = [
@@ -49,8 +49,13 @@ def main():
             # keep og:image for reference
             og = (re.search(r'property="og:image"\s+content="([^"]+)"', html) or [None, ""])[1]
             fn = f"research/pages/{i:02d}.txt"
-            open(fn, "w", encoding="utf-8").write(f"URL: {u}\nTITLE: {title}\nOG: {og}\nSTATUS: {r.status_code}\n\n{text}\n")
-            index.append({"url": u, "title": title, "status": r.status_code, "chars": len(text), "file": fn})
+            entry = {"url": u, "title": title, "status": r.status_code, "chars": len(text)}
+            if i == 0 and r.status_code == 200:
+                open(fn, "w", encoding="utf-8").write(f"URL: {u}\nTITLE: {title}\nOG: {og}\nSTATUS: {r.status_code}\n\n{text}\n")
+                entry["file"] = fn
+            else:
+                entry["storage"] = "來源索引；不隨專案散布全文"
+            index.append(entry)
             print(r.status_code, len(text), u)
         except Exception as e:
             print("ERR", u, e); index.append({"url": u, "error": str(e)})

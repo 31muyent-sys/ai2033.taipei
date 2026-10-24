@@ -18,7 +18,9 @@
 
 2026/10/08，臺北市長蔣萬安在「打造AI黃金世紀、全面釋放都市潛力」記者會宣布：規劃**遷移松山機場**，整合機場及周邊 **300 公頃**打造「臺北AI園區」，包括 **100 公頃 AI 產業聚落**、**90 公頃國際永續生活聚落**與 **110 公頃中央公園**，並解鎖 **570 公頃**受航高限制的都更地區。
 
-這個網站把那場記者會整理成四種好入口：大字版懶人包、GTA 風格的 3D 臺北、可搜尋的逐字稿，以及可線上翻閱或下載的簡報。
+這個網站把那場記者會整理成四種好入口：大字版懶人包、GTA 風格的 3D 臺北、可搜尋的新聞稿與答問整理，以及可線上翻閱或下載的簡報。
+
+**[製作紀錄：106 分鐘，從幾句 prompt 到一座可以開車的 3D 臺北](docs/MAKING-OF.md)** — 原始需求、開發時間軸、人與 AI 的分工，以及從初版到公開維護的過程。
 
 ## 🎬 示範影片
 
@@ -33,7 +35,7 @@
 |---|---|---|
 | 🌐 | **大字版互動網站**：重點整理、前後對比滑桿、300 公頃怎麼用、XY 軸捷運、大台北新矽谷、問答 | https://ai2033.taipei/ |
 | 🚕 | **3D 臺北 2033**：開車到松機，按下時光機看 2026 ⇄ 2033 | https://ai2033.taipei/3d/ |
-| 📜 | **記者會逐字稿**：大字、可搜尋、可下載 Markdown | https://ai2033.taipei/transcript/ |
+| 📜 | **記者會文字整理**：大字、可搜尋、可下載 Markdown | https://ai2033.taipei/transcript/ |
 | 📊 | **簡報**：16 頁線上翻閱＋講者備註，PPTX／PDF 下載 | https://ai2033.taipei/slides/ |
 
 ## 🖼️ 畫面
@@ -52,7 +54,7 @@
     <td><img src="docs/screenshots/site-compare.jpg" alt="網站上的 2026／2033 前後對比滑桿"><br><sub>前後對比滑桿</sub></td>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/transcript.jpg" alt="記者會逐字稿頁"><br><sub>逐字稿：可搜尋、可下載</sub></td>
+    <td><img src="docs/screenshots/transcript.jpg" alt="記者會文字整理頁"><br><sub>文字整理：可搜尋、可下載</sub></td>
     <td><img src="docs/screenshots/slides.jpg" alt="簡報線上翻閱"><br><sub>簡報：線上翻閱＋講者備註</sub></td>
   </tr>
 </table>
@@ -98,7 +100,7 @@
 ```
 index.html              大字版互動網站
 3d/                     3D 臺北 2033（index.html、style.css、js/、data/city.json）
-transcript/             逐字稿頁與 transcript.md
+transcript/             新聞稿、答問整理與 transcript.md
 slides/                 簡報 PPTX／PDF 與線上翻閱頁（img/、thumb/）
 assets/                 網站樣式、照片（含授權資訊）、3D 渲染圖、社群分享圖
 docs/                   README 用的示範影片、截圖、社群預覽圖
@@ -115,7 +117,7 @@ CNAME, sitemap.xml, robots.txt
 ## 💻 在本機執行
 
 ```bash
-npx http-server -p 8123 .
+python3 -m http.server 8123 --bind 127.0.0.1
 # 開啟 http://127.0.0.1:8123/ 與 http://127.0.0.1:8123/3d/
 ```
 
@@ -123,11 +125,12 @@ npx http-server -p 8123 .
 
 ## 🎙️ 影片逐字聽打版（Whisper）
 
-YouTube 擋下雲端主機的自動下載，所以逐字稿頁目前是**市府新聞稿版致詞全文**，加上媒體報導整理的答問重點。以下任一方式提供音訊後，`fetch-transcript` 工作流程會自動用 Whisper 轉寫、轉成繁體，並更新逐字稿頁：
+文字整理頁目前是**市府新聞稿全文**，加上媒體報導整理的答問重點。可用以下方式處理有權使用的影音；Whisper 結果仍需人工校對後才能稱為完整逐字稿：
 
-1. 把影片或音檔（mp3／m4a／mp4）上傳到 `research/youtube/input/`
-2. 在 Actions → fetch-transcript → Run workflow，填入可直接下載的影音網址
-3. 在 repo Secrets 新增 `YT_COOKIES`（YouTube cookies.txt），再手動執行 fetch-transcript
+1. 本機處理：把影音放進已忽略的 `research/youtube/input/`，執行 `bash tools/fetch/youtube.sh`，再執行 `python tools/fetch/transcribe.py /tmp/yt/audio16k.wav` 及 `python tools/build/build_transcript.py`。只提交校對過的文字結果。
+2. 雲端處理：在 Actions → fetch-transcript → Run workflow，填入有權使用、可直接下載的 HTTPS 影音網址，手動啟動工作流程。
+
+來源必須是你有權取得與使用的影音；不要將登入 cookies、API 密鑰或原始人聲檔提交到公開倉庫。
 
 ## 📚 資料來源與授權
 
@@ -137,3 +140,45 @@ YouTube 擋下雲端主機的自動下載，所以逐字稿頁目前是**市府�
 - 3D 園區配置、產值與戶數為依新聞稿文字繪製或引用之**示意與市府估算**，非正式設計圖
 
 > 本站為**非官方**粉絲整理，與臺北市政府無隸屬關係；正式內容請以臺北市政府公告為準。
+
+
+## 📦 開源套件、資料與素材
+
+本專案的原創程式碼與原創技術文件採 [MIT License](LICENSE)，著作權聲明為 © 2026 Ju-Chun Ko and contributors。使用、修改與散布時，請保留著作權聲明與授權全文。
+
+MIT 授權不涵蓋第三方程式、引用內容、照片、圖資、字型、影音及其他媒體素材；這些內容各依原授權或權利人許可使用，也不授予商標、人物肖像或聲音的使用權。適用範圍與逐項來源見 [CREDITS.md](CREDITS.md)。
+
+| 元件 | 使用範圍 | 授權 |
+|---|---|---|
+| three.js 0.160.0（r160）及 addons | 3D 網頁 | MIT，保留 `vendor/three/LICENSE` |
+| satori 0.33.5、@resvg/resvg-js 2.6.2 | 分享卡服務 | MPL-2.0 |
+| React、React DOM | 影片製作 | MIT |
+| Remotion 4.0.484 | 影片製作工具，不是網站執行時依賴 | Remotion 特定授權，需依使用者／組織資格確認 |
+| Noto Sans TC、JetBrains Mono | 網頁／分享卡／影片字型 | SIL OFL 1.1；分享卡字型已子集化 |
+| OpenStreetMap／Geofabrik | 3D 圖資、衍生資料庫、渲染圖 | ODbL 1.0，© OpenStreetMap contributors |
+| Wikimedia Commons 照片 | 人物與城市照片 | 逐張不同，見 `assets/photos/credits.json` 與網站署名 |
+| Mixkit 音樂與音效 | 介紹影片製作素材 | Mixkit 特定素材授權；新版不附獨立原檔，不是開源素材 |
+| PGlite | 隔離資料庫測試 | Apache-2.0 |
+
+- 完整 npm 直接與間接依賴清單：[DEPENDENCIES.md](DEPENDENCIES.md)。依 `package-lock.json` 鎖定版本，以 `npm ci` 安裝。
+- 其他資料／影片／簡報建置工具及來源：[CREDITS.md](CREDITS.md)。原製作環境的 `APPLY_THEME` 輔助程式未附，不能宣稱所有建置流程已可完全重現。
+- 媒體文章保留來源索引，不再附全文；獨立音效原檔需由製作者依授權自行取得。
+- 3D 園區是概念示意，2033 是此構想的目標年，產值／戶數為引用的市府估算，均不是已核定設計或保證實現的承諾。
+- 此專案由擁有者與 AI 協作；外部程式與素材需保留來源，AI 生成不能作為無侵權保證。繁體中文與臺灣常用詞為介面標準。
+
+## 🔐 安全與驗證
+
+Supabase publishable key 是給瀏覽器使用的公開金鑰，不能賦予直接讀寫資料表的能力。資料表啟用 RLS 並撤銷 `anon`／`authenticated` 的直接權限，公開成績經限定欄位的 RPC 提供。成績寫入另外驗證資料型別、時間、路線、速限及重複登錄。
+
+```bash
+npm ci --ignore-scripts
+npm ci --prefix og --ignore-scripts
+npm test
+npm audit --prefix og
+npm audit --prefix video --package-lock-only
+npm run credits
+```
+
+測試使用隔離的 PGlite，不會把測試成績寫入公榜。排行榜功能與切換方式維持原有設計。
+
+請閱讀 [SECURITY.md](SECURITY.md) 的安全界線與回報方式，以及[隱私與資料說明](privacy/index.html)。純前端遊戲不能保證完全防作弊；不要將其排行當成有獎競賽或身分驗證依據。

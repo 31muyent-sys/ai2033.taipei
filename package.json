@@ -1,0 +1,10 @@
+{
+  "name": "ai2033-maintenance",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test tools/security/*.test.mjs og/test/*.test.mjs",
+    "credits": "node tools/security/dependency-notices.mjs"
+  },
+  "devDependencies": { "@electric-sql/pglite": "0.5.11" }
+}

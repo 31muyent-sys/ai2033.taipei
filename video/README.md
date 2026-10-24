@@ -27,4 +27,6 @@
    兩個版本共用同一條時間軸與旁白，各幕在 `src/scenes.tsx` 依畫面比例切換直式／橫式版面。
    `modelLabel` 是第 3 幕畫面上顯示的 AI 模型名稱；`bgm:false` 輸出無配樂版（保留音效）。
 
-音樂與音效出處見 `public/sfx/ATTRIBUTION.md`（Mixkit 免費授權）。部分鏡頭參考 [video-shotcraft](https://github.com/Vincentwei1021/video-shotcraft) 的配方。
+音樂／音效原檔不隨原始碼散布，請依授權自行取得並放入 `public/sfx/`。音樂與音效出處見 `public/sfx/ATTRIBUTION.md`（Mixkit 免費授權）。部分鏡頭參考 [video-shotcraft](https://github.com/Vincentwei1021/video-shotcraft) 的配方。
+
+影片製作依賴採 [Remotion 特定授權](https://www.remotion.dev/license)，需依實際使用者／組織資格確認免費或公司授權；它與本專案原創程式的授權分開。

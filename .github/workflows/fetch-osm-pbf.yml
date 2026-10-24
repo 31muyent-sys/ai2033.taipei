@@ -1,8 +1,6 @@
 name: fetch-osm-pbf
 on:
   workflow_dispatch:
-  push:
-    paths: ['.github/workflows/fetch-osm-pbf.yml', 'tools/fetch/geojson_to_overpass.py']
 permissions:
   contents: write
 concurrency: { group: fetch-osm-pbf, cancel-in-progress: false }
@@ -11,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.ref_name }}
       - run: sudo apt-get update -y && sudo apt-get install -y osmium-tool

@@ -42,18 +42,18 @@ def ts(s):
 QA = [
     ("松山機場的運量由誰承接？", "蔣萬安表示，五楊高架、機場捷運完成後，臺北到桃園機場約 36 分鐘；桃園機場第三航廈預計 2027 年啟用、第三跑道預計 2033 年完工，整體量能足以承接松山機場的航運功能，松機遷移的客觀配套條件已趨成熟。", "TVBS 2026/10/08", "https://news.tvbs.com.tw/politics/4033223"),
     ("軍民合用、國防怎麼辦？", "蔣萬安說明，松山機場目前並非空軍的戰術基地，相關國防功能可以延伸與彈性調整，市府一定會與國防部及中央政府共同合作、共同討論。過去輝達也曾考慮松南營區，未來松機確定遷移後，市府規劃以松南營區及松機南側與中央攜手整合。", "TVBS 2026/10/08", "https://news.tvbs.com.tw/politics/4033223"),
-    ("什麼時候完成？", "蔣萬安表示，松機遷移計畫預計於 2033 年完成，距今約 8 年，但現在就必須開始規劃與準備；城市的改變需要大破大立，市府會全力溝通，爭取中央與市民支持。", "TVBS 2026/10/08", "https://news.tvbs.com.tw/politics/4033223"),
+    ("什麼時候完成？", "蔣萬安表示，松機遷移計畫預計於 2033 年完成，以 2026 年計約 7 年，但現在就必須開始規劃與準備；城市的改變需要大破大立，市府會全力溝通，爭取中央與市民支持。", "TVBS 2026/10/08", "https://news.tvbs.com.tw/politics/4033223"),
     ("交通怎麼改善？", "規劃基湖路、敬業三路、北安路透過跨河廊道穿越松機腹地，直接銜接松山、信義；民族東路向東延伸穿越松機基地進入內科，往西連接建國高架、新生高架，「相當於打通臺北市交通的任督二脈」。捷運則規劃臺北 XY 軸捷運。", "自由時報 2026/10/08", "https://news.ltn.com.tw/news/politics/breakingnews/5599727"),
 ]
 
 # ---------------- markdown ----------------
-md = ["# AI黃金世紀，就從臺北開始｜2026/10/08 記者會逐字稿", "",
+md = ["# AI黃金世紀，就從臺北開始｜2026/10/08 記者會文字整理", "",
       f"影片：https://youtu.be/{VID}", ""]
 if segs:
     md += ["## 影片語音逐字稿（自動語音辨識，已轉繁體）", ""]
     md += [f"[{ts(s['start'])}] {s['text']}" for s in segs]
     md += [""]
-md += ["## 致詞全文（臺北市政府新聞稿版）", "",
+md += ["## 新聞稿全文（臺北市政府發布）", "",
        "> 來源：臺北市政府新聞稿〈輝達來了！蔣萬安發表「AI黃金世紀」新願景 拋松機遷移打造百公頃臺北AI園區〉（2026/10/08）。", ""]
 for k, t in blocks:
     md += [f"### {t}" if k == "h" else t, ""]
@@ -73,16 +73,16 @@ if segs:
 <p class="badge ok">自動語音辨識（Whisper）＋繁體轉換，可能有少數錯字，點時間可跳到影片該段。</p>
 <div class="segs">{verb}</div></section>'''
 else:
-    verb_block = '''<p class="badge wait" id="verbatim">⏳ 影片逐字聽打版製作中。YouTube 目前擋下自動下載，所以下方先放<strong>市府新聞稿版的致詞全文</strong>（市府發布的官方文字版本，現場口語可能略有不同）。聽打版完成後會自動加在這裡，每句附時間碼。</p>'''
+    verb_block = '''<p class="badge wait" id="verbatim">資料版本說明：目前尚未完成現場錄音逐字核對，下方提供<strong>市府新聞稿全文</strong>（含敘事與引述，不等同於現場完整發言）。若取得可使用的影音並完成校對，會另行提供附時間碼的聽打版。</p>'''
 
 page = f'''<!doctype html>
 <html lang="zh-Hant-TW">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>記者會逐字稿｜AI黃金世紀，就從臺北開始（2026/10/08）</title>
-<meta name="description" content="臺北市長蔣萬安 2026/10/08「打造AI黃金世紀、全面釋放都市潛力」記者會逐字稿：松山機場遷移、300 公頃臺北AI園區、110 公頃中央公園。大字版，可搜尋。">
-<meta property="og:title" content="記者會逐字稿｜AI黃金世紀，就從臺北開始">
+<title>記者會文字整理｜AI黃金世紀，就從臺北開始（2026/10/08）</title>
+<meta name="description" content="臺北市長蔣萬安 2026/10/08「打造AI黃金世紀、全面釋放都市潛力」記者會文字整理：松山機場遷移、300 公頃臺北AI園區、110 公頃中央公園。大字版，可搜尋。">
+<meta property="og:title" content="記者會文字整理｜AI黃金世紀，就從臺北開始">
 <link rel="canonical" href="https://ai2033.taipei/transcript/">
 <meta property="og:type" content="article">
 <meta property="og:url" content="https://ai2033.taipei/transcript/">
@@ -96,7 +96,7 @@ page = f'''<!doctype html>
 <body>
 <header class="bar">
   <a class="home" href="../index.html">← 回首頁</a>
-  <div class="find"><input id="q" type="search" placeholder="搜尋逐字稿，例如：中央公園" aria-label="搜尋逐字稿"><span id="hits" aria-live="polite"></span></div>
+  <div class="find"><input id="q" type="search" placeholder="搜尋文字整理，例如：中央公園" aria-label="搜尋文字整理"><span id="hits" aria-live="polite"></span></div>
   <div class="fs" role="group" aria-label="字體大小"><button data-fs="-1" aria-label="字體縮小">A−</button><button data-fs="1" aria-label="字體放大">A＋</button></div>
 </header>
 <main class="wrap">
@@ -110,8 +110,8 @@ page = f'''<!doctype html>
   <div class="actions"><a class="btn" href="transcript.md" download>⬇ 下載文字檔（.md）</a><a class="btn" href="../slides/index.html">📊 簡報</a><a class="btn gold" href="../3d/index.html">🚕 3D 體驗</a><button class="btn" onclick="print()">🖨 列印</button></div>
   {verb_block}
   <section class="block" id="speech">
-    <h2>致詞全文（臺北市政府新聞稿版）</h2>
-    <p class="badge">來源：<a href="https://www.gov.taipei/News_Content.aspx?n=F0DDAF49B89E9413&amp;sms=72544237BBE4C5F6&amp;s=8ED4D25BC664CF21" target="_blank" rel="noopener">臺北市政府新聞稿（2026/10/08）</a>。黃底為重點數字，<q>「引號」</q>為市長原話。</p>
+    <h2>新聞稿全文（臺北市政府發布）</h2>
+    <p class="badge">來源：<a href="https://www.gov.taipei/News_Content.aspx?n=F0DDAF49B89E9413&amp;sms=72544237BBE4C5F6&amp;s=8ED4D25BC664CF21" target="_blank" rel="noopener">臺北市政府新聞稿（2026/10/08）</a>。黃底為重點數字，<q>「引號」</q>依新聞稿原文保留。</p>
     <nav class="toc" aria-label="段落目錄"><b>段落目錄</b><ol>{toc}</ol></nav>
     <div class="text">{pr_html}</div>
   </section>

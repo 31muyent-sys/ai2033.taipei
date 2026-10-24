@@ -1,6 +1,7 @@
 {
   "name": "ai2033-intro",
   "private": true,
+  "license": "MIT",
   "scripts": {
     "studio": "remotion studio src/index.ts",
     "render": "remotion render src/index.ts IntroVertical out/intro-vertical.mp4"
@@ -17,5 +18,6 @@
   "devDependencies": {
     "@types/react": "19.2.17",
     "typescript": "6.0.3"
-  }
+  },
+  "overrides": { "zod": "4.6.6", "fast-uri": "3.1.9" }
 }

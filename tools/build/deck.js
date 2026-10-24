@@ -313,7 +313,7 @@ s.addImage({ path: P('assets/qr-site.png'), x: 9.35, y: 1.5, w: 2.6, h: 2.6, alt
 T(s, '掃描進入網站', { x: 9.1, y: 4.2, w: 3.1, h: 0.45, fontSize: 18, bold: true, color: C.accent1, align: 'center' });
 T(s, '開著臺北小黃開到松山機場，按一下切換 2026 ⇄ 2033，看 110 公頃中央公園長出來；還有逐字稿、簡報下載。', { x: 9.1, y: 4.75, w: 3.63, h: 1.6, fontSize: 14, color: C.background1 });
 T(s, SITE, { x: 0.6, y: 6.25, w: 12.1, h: 0.4, fontSize: 11, color: C.background2, hyperlink: { url: SITE } });
-s.addNotes('網站提供 GTA 風格的 3D 臺北體驗、大字版重點整理、記者會逐字稿與本簡報下載。');
+s.addNotes('網站提供 GTA 風格的 3D 臺北體驗、大字版重點整理、記者會文字整理與本簡報下載。');
 
 // ---------- 15. closing ----------
 s = pres.addSlide({ masterName: 'CLOSING_DARK', sectionTitle: '體驗與結語' });

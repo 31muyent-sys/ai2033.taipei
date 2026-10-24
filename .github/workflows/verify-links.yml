@@ -1,8 +1,6 @@
 name: verify-links
 on:
   workflow_dispatch:
-  push:
-    paths: ['tools/verify/**', '.github/workflows/verify-links.yml']
 permissions:
   contents: write
 jobs:
@@ -10,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.ref_name }}
       - name: HTTP checks

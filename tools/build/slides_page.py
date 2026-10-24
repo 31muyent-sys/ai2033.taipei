@@ -82,6 +82,7 @@ def main():
 <meta name="theme-color" content="#0b1730">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
 <style>html,body{{margin:0}}img{{max-width:100%}}[hidden]{{display:none!important}}</style>
+<script src="../assets/js/ga.js"></script>
 </head>
 <body>
 <div class="app">{body.rstrip()}

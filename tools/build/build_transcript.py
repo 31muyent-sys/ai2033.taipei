@@ -3,7 +3,7 @@
 
 Sources:
   * research/pages/00.txt — Taipei City Government press release (2026-10-08), the official written version of the speech
-  * research/youtube/whisper_segments.json — speech-to-text of the video, when available (see fetch-transcript workflow)
+  * research/youtube/whisper_segments.json — speech-to-text of the video, when available (see tools/fetch/transcribe.py)
 """
 import html, json, os, re
 
@@ -92,6 +92,7 @@ page = f'''<!doctype html>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="transcript.css">
+<script src="../assets/js/ga.js"></script>
 </head>
 <body>
 <header class="bar">

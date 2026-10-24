@@ -14,6 +14,8 @@ import { PHOTO, PHOTO_CREDIT, SIGN, INTRO, MISSIONS, CHECKPOINTS, FINALE, STATS,
 import * as board from './board.js';
 
 const $ = (id) => document.getElementById(id);
+// GA4 events (assets/js/ga.js): counts only, never the player's initials
+const track = (name, p) => { try { window.gtag && window.gtag('event', name, p); } catch {} };
 const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
 const LOW = isTouch || Math.min(screen.width, screen.height) < 700 || /low=1/.test(location.search);
 const QUALITY = { pixelRatio: Math.min(devicePixelRatio, LOW ? 1.25 : 1.75), shadows: !LOW, bloom: !LOW, trees: LOW ? 2600 : 5200, cars: LOW ? 120 : 260, buildings: LOW ? 26000 : 60000 };
@@ -1318,6 +1320,7 @@ function raceLock() {
 }
 function startRace() {
   if (!S.ready) return;
+  track('race_start');
   ['card', 'help', 'finale', 'raceEnd', 'legUp'].forEach(id => $(id).hidden = true); S.paused = false; S.keys = {};
   if (S.mode === 'tour') endTour();
   $('intro').hidden = true; $('hud').hidden = false; if (isTouch) $('touch').hidden = false;
@@ -1408,6 +1411,7 @@ function finishRace(ms) {
   S.race.ms = ms;
   $('mTime').textContent = fmtTime(ms);
   banner('全部送達！', fmtTime(ms), 2200);
+  track('race_finish', { seconds: Math.round(ms / 100) / 10 });
   endRun(true);
 }
 // the run stops here (all orders, or registering early / leaving with records): show the result screen
@@ -1550,6 +1554,7 @@ async function submitRun() {
   const res = await board.submit(RACE.id, NST, { initials: INIT.s, legs, splits: r.splits, trace: r.trace.filter(t => t[0] <= last) });
   if (res.reason && ['rate_limited', 'blocked_initials', 'bad_initials'].includes(res.reason)) { $('reMsg').textContent = BOARD_ERR[res.reason]; $('reSubmit').disabled = false; return; }
   if (res.reason === 'implausible') res.why = whyRefused(res.detail);
+  track('score_submit', { result: res.reason || 'ok', full: r.full });
   r.submitted = true; r.who = INIT.s; r.shared = res.shared; r.ranks = res.ranks;
   r.mine = {}; for (const leg of legs) r.mine[leg] = leg === 0 ? r.ms : legMs(r, leg);
   $('reEntry').hidden = true;
@@ -1581,8 +1586,10 @@ function raceShare() {
   $('shX').href = `https://twitter.com/intent/tweet?text=${enc(text)}&url=${enc(url)}`;
   $('shText').value = `${text}\n${url}`;
   $('reShareRow').hidden = false;
-  if (navigator.share) navigator.share({ title: '臺北 2033 外送王', text, url }).catch(() => {});
+  track('share_open', { full: r.full });
+  if (navigator.share) navigator.share({ title: '臺北 2033 外送王', text, url }).then(() => track('share', { method: 'system' }), () => {});
 }
+[['shFb', 'facebook'], ['shTh', 'threads'], ['shLine', 'line'], ['shX', 'x']].forEach(([id, method]) => $(id).addEventListener('click', () => track('share', { method })));
 $('reSubmit').onclick = () => submitRun();
 $('reAgain').onclick = () => startRace();
 $('reShare').onclick = () => raceShare();
@@ -1593,6 +1600,7 @@ $('shCopy').onclick = () => {
   const t = $('shText');
   const done = () => { $('shCopy').textContent = '已複製 ✓'; setTimeout(() => $('shCopy').textContent = '複製', 1800); };
   const pick = () => { t.focus(); t.select(); $('shCopy').textContent = '已選取，請按複製'; };
+  track('share', { method: 'copy' });
   try { navigator.clipboard.writeText(t.value).then(done, pick); } catch { pick(); }
 };
 
@@ -1608,6 +1616,7 @@ function drawIntroBoard() {
 }
 function openBoardView() {
   if (!$('boardView').hidden) return;
+  track('leaderboard_open', { racing: !!(S.race && S.race.phase === 'run') });
   BV.resume = !S.paused; S.paused = true; S.keys = {};   // the race clock stops while the boards are open
   if (S.race && S.race.phase === 'run') BV.tab = S.race.stop < NST ? S.race.stop + 1 : 0;
   $('bvRace').hidden = !!(S.race && S.race.phase !== 'done');

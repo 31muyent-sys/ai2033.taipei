@@ -127,8 +127,7 @@ python3 -m http.server 8123 --bind 127.0.0.1
 
 文字整理頁目前是**市府新聞稿全文**，加上媒體報導整理的答問重點。可用以下方式處理有權使用的影音；Whisper 結果仍需人工校對後才能稱為完整逐字稿：
 
-1. 本機處理：把影音放進已忽略的 `research/youtube/input/`，執行 `bash tools/fetch/youtube.sh`，再執行 `python tools/fetch/transcribe.py /tmp/yt/audio16k.wav` 及 `python tools/build/build_transcript.py`。只提交校對過的文字結果。
-2. 雲端處理：在 Actions → fetch-transcript → Run workflow，填入有權使用、可直接下載的 HTTPS 影音網址，手動啟動工作流程。
+在本機處理：把影音放進已忽略的 `research/youtube/input/`，執行 `bash tools/fetch/youtube.sh`，再執行 `python tools/fetch/transcribe.py /tmp/yt/audio16k.wav` 及 `python tools/build/build_transcript.py`。只提交校對過的文字結果。
 
 來源必須是你有權取得與使用的影音；不要將登入 cookies、API 密鑰或原始人聲檔提交到公開倉庫。
 

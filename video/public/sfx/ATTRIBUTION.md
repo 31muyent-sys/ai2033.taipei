@@ -1,6 +1,14 @@
-# Sound credits
+# 影片音樂與音效來源
 
-All files from Mixkit (via the video-shotcraft asset library), free licences, no attribution required.
+以下為影片曾使用的 Mixkit 素材來源（經 video-shotcraft 素材清單找到）。免費使用不等於開源或可隨原始碼再散布。
+
+新版倉庫不附 MP3 原檔；製作者須自行依原授權下載，置於此目錄供本機輸出，檔案已列入 .gitignore。來源與檔名保留供重建。
+
+- [Sound Effects Free License](https://mixkit.co/license/modal/sfxFree/)：允許在符合條件的成品內使用，但禁止單獨或隨原始碼／範本再散布音效。
+- [Stock Music Free License](https://mixkit.co/license/modal/musicFree/)：音樂另有媒體用途限制，例如不得用於遊戲或電視／廣播。
+- [使用條款](https://mixkit.co/terms/)也適用；重新發行或改變用途前應核對。
+
+本目錄的音樂只用於介紹影片，並未放入 3D 遊戲。
 
 | File | Original | Licence / URL |
 |---|---|---|

@@ -19,6 +19,9 @@ export const fmtTime = (ms) => `${Math.floor(ms / 60000)}:${((ms % 60000) / 1000
 export const fmtSec = (ms) => `${(ms / 1000).toFixed(2)} 秒`;
 export const fmtAny = (ms) => (ms >= 60000 ? fmtTime(ms) : fmtSec(ms));
 export const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const timeOK = n => Number.isInteger(n) && n >= 200 && n <= 900000;
+const positiveInt = n => Number.isSafeInteger(n) && n > 0;
+const cleanRows = rows => (Array.isArray(rows) ? rows : []).filter(r => r && /^[A-Z]{3}$/.test(r.i) && timeOK(r.ms)).slice(0, 3);
 
 async function rpc(fn, body) {
   const res = await fetch(`${DB.url}/rest/v1/rpc/${fn}`, {
@@ -38,12 +41,13 @@ export async function lookup(q) {
   try {
     if (q.get('board')) {
       const b = await rpc('race_boards', { p_course: COURSE, p_limit: 3 });
-      return { kind: 'board', rows: (b.total || []).filter(r => /^[A-Z]{3}$/.test(r.i)).slice(0, 3) };
+      return { kind: 'board', rows: cleanRows(b?.total) };
     }
     const id = q.get('id');
     if (id && /^\d{1,12}$/.test(id)) {
       const e = await rpc('race_entry', { p_id: +id });
-      if (e && e.course === COURSE && /^[A-Z]{3}$/.test(e.initials) && e.leg >= 0 && e.leg <= ORDERS.length) {
+      if (e && e.course === COURSE && /^[A-Z]{3}$/.test(e.initials) && Number.isInteger(e.leg) && e.leg >= 0 && e.leg <= ORDERS.length
+          && positiveInt(e.id) && timeOK(e.ms) && positiveInt(e.rank) && positiveInt(e.total) && e.rank <= e.total) {
         return { kind: 'run', id: e.id, initials: e.initials, ms: e.ms, leg: e.leg, rank: e.rank, total: e.total };
       }
     }

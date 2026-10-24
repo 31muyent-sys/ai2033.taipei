@@ -5,8 +5,6 @@ on:
       media_url:
         description: '可直接下載的影片/音檔網址（選填）'
         required: false
-  push:
-    paths: ['research/youtube/input/**', '.github/workflows/fetch-transcript.yml']
 permissions:
   contents: write
 concurrency: { group: fetch-transcript, cancel-in-progress: false }
@@ -15,20 +13,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 340
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.ref_name }}
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.12'
-      - uses: denoland/setup-deno@v2
-        with:
-          deno-version: v2.x
       - run: sudo apt-get update -y && sudo apt-get install -y ffmpeg
-      - run: pip install -U "yt-dlp[default,curl-cffi]" faster-whisper opencc-python-reimplemented
+      - run: pip install faster-whisper opencc-python-reimplemented==0.1.7
       - run: bash tools/fetch/youtube.sh ircGbXWHRbQ
         env:
-          YT_COOKIES: ${{ secrets.YT_COOKIES }}
           MEDIA_URL: ${{ github.event.inputs.media_url }}
       - run: 'bash tools/fetch/commit.sh "chore(transcript): video metadata and captions" research/youtube'
       - name: Transcribe

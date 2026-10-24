@@ -25,12 +25,14 @@ create index if not exists race_scores_board on public.race_scores (course, leg,
 create index if not exists race_scores_client on public.race_scores (client, created_at desc);
 create index if not exists race_scores_splits on public.race_scores (course, splits);   -- replay check in submit_score
 alter table public.race_scores enable row level security;   -- no policies: no direct reads or writes
-revoke all on public.race_scores from public;
+-- RLS does not restrict TRUNCATE; revoke explicit Supabase default grants too.
+revoke all on public.race_scores from public, anon, authenticated;
+revoke all on sequence public.race_scores_id_seq from public, anon, authenticated;
 
 -- courses the game ships (3d/js/content.js RACE): start, delivery radius and stops in world metres, and the
 -- fastest the taxi can go there in world m/s plus a little slack (c1: 58 m/s taxi; c2: the 1:6 taxi, 167 m/s)
 create or replace function public.race_course(p_course text)
-returns jsonb language sql immutable set search_path = public as $$
+returns jsonb language sql immutable set search_path = '' as $$
   select case p_course
     when 'c1' then '{"start":[101,691],"radius":30,"vmax":60.5,"stops":[[1001,551],[-129,471],[91,-69],[61,-249],[231,-529]]}'::jsonb
     when 'c2' then '{"start":[101,691],"radius":30,"vmax":172,"stops":[[1001,551],[-129,471],[91,-69],[61,-249],[231,-529]]}'::jsonb
@@ -43,7 +45,7 @@ drop function if exists public.submit_score(text, text, int, int[], jsonb);
 
 -- every board of a course: {"total": [{i, ms}, …], "legs": [[{i, ms}, …] × stops]}, fastest first
 create or replace function public.race_boards(p_course text, p_limit int default 10)
-returns jsonb language sql stable security definer set search_path = public as $$
+returns jsonb language sql stable security definer set search_path = '' as $$
   with n as (select least(greatest(coalesce(p_limit, 10), 1), 50) as lim,
                     coalesce(jsonb_array_length(public.race_course(p_course)->'stops'), 0) as stops),
   boards as (
@@ -66,30 +68,28 @@ $$;
 -- register a run, finished or not. p_splits: ms at each delivery so far (1-5 of them).
 -- p_legs: the boards to enter — 0 for the whole run (needs every stop), k for order k on its own.
 create or replace function public.submit_score(p_course text, p_initials text, p_legs int[], p_splits int[], p_trace jsonb)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = '' as $$
 declare
   c jsonb := public.race_course(p_course);
   vmax numeric := coalesce((c->>'vmax')::numeric, 60.5);
   nstops int; ns int; n int; k int := 0; i int; lg int; lms int;
   prev jsonb; cur jsonb; st jsonb; dt numeric; d numeric; rad numeric; who text; nid bigint;
   out jsonb := '{}'::jsonb;
+  sample jsonb; v jsonb; sample_time numeric; last_split int := 0;
 begin
   if c is null then raise exception 'bad_course'; end if;
   if p_initials is null or p_initials !~ '^[A-Z]{3}$' then raise exception 'bad_initials'; end if;
   if p_initials = any (string_to_array('ASS CUM COK CNT DIC DIK FAG FCK FUC FUK FUQ FKU JIZ KKK KYS NGR NIG SEX SHT TIT VAG XXX CNM NMB TMD MLB GAN', ' ')) then
     raise exception 'blocked_initials';
   end if;
-  -- one registration per client every 15 seconds. cf-connecting-ip is set by Cloudflare in front of Supabase and
-  -- can't be supplied by the caller; x-forwarded-for can be partly, so it's only the fallback
+  -- Best-effort rate limit; request-header trust depends on the API gateway. This is not authentication.
   who := md5(coalesce(current_setting('request.headers', true)::json->>'cf-connecting-ip',
                       current_setting('request.headers', true)::json->>'x-forwarded-for', '') || '|' || p_course);
-  if exists (select 1 from public.race_scores where client = who and created_at > now() - interval '15 seconds') then
-    raise exception 'rate_limited';
-  end if;
-
   nstops := jsonb_array_length(c->'stops');
   ns := coalesce(array_length(p_splits, 1), 0);
-  if ns < 1 or ns > nstops or p_trace is null or jsonb_typeof(p_trace) <> 'array'
+  if array_ndims(p_splits) is distinct from 1 or array_lower(p_splits, 1) is distinct from 1
+     or array_ndims(p_legs) is distinct from 1 or array_lower(p_legs, 1) is distinct from 1
+     or ns < 1 or ns > nstops or p_trace is null or jsonb_typeof(p_trace) <> 'array'
      or coalesce(array_length(p_legs, 1), 0) < 1 or array_length(p_legs, 1) > nstops + 1 then
     raise exception 'implausible';
   end if;
@@ -98,7 +98,24 @@ begin
   end loop;
   if (select count(distinct x) from unnest(p_legs) x) <> array_length(p_legs, 1) then raise exception 'implausible'; end if;
   n := jsonb_array_length(p_trace);
-  if n < 2 or n > 4000 then raise exception 'implausible'; end if;
+  if n < 2 or n > 4000 or octet_length(p_trace::text) > 512000 then raise exception 'implausible'; end if;
+  foreach lms in array p_splits loop
+    if lms is null or lms - last_split < 200 or lms > 900000 then raise exception 'implausible'; end if;
+    last_split := lms;
+  end loop;
+  -- Validate every component before casts or distance comparisons. SQL comparisons with NULL do not fail closed.
+  for sample in select value from jsonb_array_elements(p_trace) loop
+    if jsonb_typeof(sample) <> 'array' then raise exception 'implausible'; end if;
+    if jsonb_array_length(sample) <> 3 then raise exception 'implausible'; end if;
+    for v in select value from jsonb_array_elements(sample) loop
+      if jsonb_typeof(v) <> 'number' then raise exception 'implausible'; end if;
+    end loop;
+    sample_time := (sample->>0)::numeric;
+    if sample_time < 0 or sample_time > 900000 or trunc(sample_time) <> sample_time
+       or abs((sample->>1)::numeric) > 100000 or abs((sample->>2)::numeric) > 100000 then
+      raise exception 'implausible';
+    end if;
+  end loop;
   rad := (c->>'radius')::numeric + 2;
 
   -- the first sample is on the start line within the first second
@@ -126,6 +143,12 @@ begin
     end if;
   end loop;
   if k <> ns or (cur->>0)::int <> p_splits[ns] then raise exception 'implausible' using detail = 'route'; end if;
+  -- Serialize matching clients and matching runs so concurrent requests cannot both pass the checks.
+  perform pg_advisory_xact_lock(hashtext('ai2033 client'), hashtext(who));
+  perform pg_advisory_xact_lock(hashtext('ai2033 run'), hashtext(p_course || ':' || p_splits::text));
+  if exists (select 1 from public.race_scores where client = who and created_at > now() - interval '15 seconds') then
+    raise exception 'rate_limited';
+  end if;
   -- a run is registered once: the same split times again are a replay of someone's route samples under other initials
   if exists (select 1 from public.race_scores where course = p_course and splits = p_splits) then
     raise exception 'duplicate';
@@ -147,7 +170,7 @@ $$;
 
 -- one entry with its live place on its board, for share cards: {id, course, leg, initials, ms, rank, total, at}
 create or replace function public.race_entry(p_id bigint)
-returns jsonb language sql stable security definer set search_path = public as $$
+returns jsonb language sql stable security definer set search_path = '' as $$
   select jsonb_build_object('id', s.id, 'course', s.course, 'leg', s.leg, 'initials', s.initials, 'ms', s.ms, 'at', s.created_at,
     'rank', (select count(*) + 1 from public.race_scores t where t.course = s.course and t.leg = s.leg and t.ms < s.ms),
     'total', (select count(*) from public.race_scores t where t.course = s.course and t.leg = s.leg))
@@ -155,6 +178,7 @@ returns jsonb language sql stable security definer set search_path = public as $
 $$;
 
 revoke all on function public.race_entry(bigint) from public;
+revoke all on function public.race_course(text) from public, anon, authenticated;
 grant execute on function public.race_entry(bigint) to anon, authenticated;
 revoke all on function public.race_boards(text, int) from public;
 revoke all on function public.submit_score(text, text, int[], int[], jsonb) from public;

@@ -13,7 +13,7 @@ CC = {
     'CC BY 2.0': 'https://creativecommons.org/licenses/by/2.0/deed.zh-hant',
 }
 # Commons gives no author for this one; the photo comes from the Legislative Yuan's site
-AUTHOR_FIX = {'chiang-podium.jpg': '立法院'}
+AUTHOR_FIX = {'chiang-podium.jpg': '原始作者未標明；來源：立法院'}
 
 root = pathlib.Path(__file__).resolve().parents[2]
 credits = json.loads((root / 'assets/photos/credits.json').read_text())

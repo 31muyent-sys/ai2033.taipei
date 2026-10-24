@@ -9,5 +9,6 @@
   "dependencies": {
     "@resvg/resvg-js": "2.6.2",
     "satori": "0.33.5"
-  }
+  },
+  "overrides": { "fflate": "0.7.5" }
 }

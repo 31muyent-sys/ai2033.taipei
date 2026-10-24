@@ -21,7 +21,9 @@ function frame(top, middle, bottom) {
     h('div', { position: 'absolute', left: 0, top: 0, width: 1200, height: 630, backgroundImage: 'linear-gradient(90deg, rgba(8,14,30,0.97) 0%, rgba(8,14,30,0.9) 48%, rgba(8,14,30,0.35) 100%)' }),
     h('div', { position: 'absolute', left: 0, bottom: 0, width: 1200, height: 14, backgroundImage: `linear-gradient(90deg, ${C.gold}, ${C.cyan})` }),
     h('div', { position: 'absolute', left: 0, top: 0, width: 1200, height: 616, flexDirection: 'column', justifyContent: 'space-between', padding: '50px 64px 40px' },
-      top, middle, bottom));
+      top, middle, bottom),
+    h('div', { position: 'absolute', left: 64, bottom: 18, color: C.muted, fontSize: 14, fontWeight: 700 },
+      '(c) OpenStreetMap contributors | openstreetmap.org/copyright'));
 }
 const header = (right) => h('div', { alignItems: 'center', justifyContent: 'space-between' },
   h('div', { fontSize: 36, fontWeight: 900, color: C.gold, letterSpacing: 4 }, '臺北 2033・外送王'), right);

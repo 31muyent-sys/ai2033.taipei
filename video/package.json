@@ -1,6 +1,7 @@
 {
   "name": "ai2033-intro",
   "private": true,
+  "license": "MIT",
   "scripts": {
     "studio": "remotion studio src/index.ts",
     "render": "remotion render src/index.ts IntroVertical out/intro-vertical.mp4"
